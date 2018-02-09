@@ -2,28 +2,66 @@
 owtf
 ~~~~~
 """
+import os
+import subprocess
+import logging
+
+from flask_alembic import Alembic
+from flask_sqlalchemy import SQLAlchemy
+from raven.contrib.flask import Sentry
+from celery import Celery
 
 from owtf.utils.file import FileOperations, get_logs_dir
-from .db.database import get_scoped_session
 
 
-__version__ = '2.3b'
-__release__ = 'MacOWTF'
+try:
+    VERSION = __import__('pkg_resources').get_distribution('owtf').version
+except Exception:
+    VERSION = 'unknown'
+
+
+def _get_git_revision(path):
+    try:
+        r = subprocess.check_output('git rev-parse HEAD', cwd=path, shell=True)
+    except Exception:
+        return None
+    return r.strip()
+
+
+def get_revision():
+    """
+    :returns: Revision number of this branch/checkout, if available. None if
+        no revision number can be determined.
+    """
+    package_dir = os.path.dirname(__file__)
+    checkout_dir = os.path.normpath(os.path.join(package_dir, os.pardir))
+    path = os.path.join(checkout_dir, '.git')
+    if os.path.exists(path):
+        return _get_git_revision(path)
+    return None
+
+
+def get_version():
+    base = VERSION
+    if __build__:
+        base = '%s (%s)' % (base, __build__)
+    return base
+
+
+__build__ = get_revision()
+__docformat__ = 'restructuredtext en'
 
 print("""\033[92m
-    _____ _ _ _ _____ _____
+     _____ _ _ _ _____ _____
     |     | | | |_   _|   __|
     |  |  | | | | | | |   __|
     |_____|_____| |_| |__|
-    
+
         @owtfp
-    http://owtf.org
+    Visit: http://owtf.org
     Version: {0}
-    Release: {1}
-    \033[0m""".format(__version__, __release__)
-)
+    Revision: {1}
+\033[0m""".format(VERSION, __build__))
 
-
-db = get_scoped_session()
 FileOperations.create_missing_dirs(get_logs_dir())
 

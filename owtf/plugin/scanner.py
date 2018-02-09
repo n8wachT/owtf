@@ -8,7 +8,7 @@ The scan_network scans the network for different ports and call network plugins 
 import logging
 import re
 
-from owtf.config import config_handler
+#from owtf.config import config_handler
 from owtf.shell.blocking_shell import shell
 from owtf.utils.file import FileOperations
 

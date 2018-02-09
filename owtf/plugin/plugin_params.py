@@ -7,8 +7,7 @@ Manage parameters to the plugins
 import logging
 from collections import defaultdict
 
-from owtf.config import config_handler
-from owtf.db.database import get_scoped_session
+from owtf.config import db
 from owtf.managers.error import add_error
 from owtf.utils.error import abort_framework
 from owtf.utils.logger import logger
@@ -17,11 +16,10 @@ from owtf.utils.strings import merge_dicts
 
 class PluginParams(object):
 
-    def __init__(self, options):
+    def __init__(self):
         self.init = False
         self.no_args = []
         self.logger = logger
-        self.session = get_scoped_session()
         self.logger.setup_logging()
 
     def process_args(self):
@@ -36,13 +34,13 @@ class PluginParams(object):
                 continue
             chunks = arg.split('=')
             if len(chunks) < 2:
-                add_error(self.session, "USER ERROR: %s arguments should be in NAME=VALUE format" % str(chunks), 'user')
+                add_error("USER ERROR: %s arguments should be in NAME=VALUE format" % str(chunks), 'user')
                 return False
             arg_name = chunks[0]
             try:
                 arg_val = arg.replace(arg_name, '')[1:]
             except ValueError:
-                add_error(self.session, "USER ERROR: %s arguments should be in NAME=VALUE format" % str(arg_name), 'user')
+                add_error("USER ERROR: %s arguments should be in NAME=VALUE format" % str(arg_name), 'user')
                 return False
             self.args[arg_name] = arg_val
         return True
@@ -130,7 +128,7 @@ class PluginParams(object):
         logging.info("Could not default not passed: '%s'%s" % (arg_name, default_order_str))
         return False
 
-    def get_arg_list(self, session, arg_list, plugin, mandatory=True):
+    def get_arg_list(self, arg_list, plugin, mandatory=True):
         """Get args list
 
         :param arg_list: available args
@@ -156,7 +154,7 @@ class PluginParams(object):
                     # The Parameter has been defaulted, must skip loop to avoid assignment at the bottom or
                     # argument is optional = ok to skip
                     continue
-                add_error(session, "USER ERROR: %s requires argument: '%s'" % (self.show_plugin(plugin), arg_name),
+                add_error("USER ERROR: %s requires argument: '%s'" % (self.show_plugin(plugin), arg_name),
                                        'user')
                 return self.ret_arg_error({}, plugin)  # Abort processing (invalid data)
             args[arg_name] = self.args[arg_name]
@@ -311,7 +309,7 @@ class PluginParams(object):
             return arg_list  # No permutations, return original arguments
         return permutation_list
 
-    def get_args(self, session, full_args_list, plugin):
+    def get_args(self, full_args_list, plugin):
         """Get args from a full list for a plugin
 
         :param full_args_list: available args
@@ -327,8 +325,8 @@ class PluginParams(object):
         if 'O' in self.raw_args:  # To view available options
             self.show_param_info(full_args_list, plugin)
             return self.no_args  # Abort processing, just showing options
-        mandatory = self.get_arg_list(session, full_args_list['Mandatory'], plugin, True)
-        optional = self.get_arg_list(session, full_args_list['Optional'], plugin, False)
+        mandatory = self.get_arg_list(full_args_list['Mandatory'], plugin, True)
+        optional = self.get_arg_list(full_args_list['Optional'], plugin, False)
         if self.get_arg_error(plugin):
             logging.info("")
             logging.warn("ERROR: Aborting argument processing, please correct the errors above and try again")
@@ -336,6 +334,3 @@ class PluginParams(object):
             return self.no_args  # Error processing arguments, must abort processing
         all_args = merge_dicts(mandatory, optional)
         return self.set_args(all_args, plugin)
-
-
-plugin_params = PluginParams(options={})

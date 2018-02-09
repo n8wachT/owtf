@@ -304,6 +304,9 @@ for dir in ${ROOT_DIR}/data/*; do
     copy_dirs "$dir" "${OWTF_DIR}/$(basename $OWTF_DIR/$dir)"
 done
 
+# Copy the default settings
+cp -f "${ROOT_DIR}/data/owtf.conf.py.default" "${OWTF_DIR}/owtf.conf.py"
+
 if [ ! "$(uname)" == "Darwin" ]; then
     check_sudo
 fi

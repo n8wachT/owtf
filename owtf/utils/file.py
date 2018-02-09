@@ -5,7 +5,7 @@ import shutil
 import logging
 import tempfile
 
-from owtf.settings import LOGS_DIR, WORKER_LOG_DIR, TARGETS_DIR, OUTPUT_PATH, OWTF_CONF
+from owtf.constants import LOGS_DIR, WORKER_LOG_DIR, TARGETS_DIR, OUTPUT_PATH, OWTF_CONF
 from owtf.utils.error import abort_framework
 from owtf.utils.strings import wipe_bad_chars
 

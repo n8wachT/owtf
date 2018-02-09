@@ -17,16 +17,15 @@ except ImportError:
 from time import strftime
 
 import psutil
+from flask import current_app, g
 
 from owtf.managers.worklist import get_work_for_target
-from owtf.settings import PROCESS_PER_CORE, MIN_RAM_NEEDED, CLI
+from owtf.constants import PROCESS_PER_CORE, MIN_RAM_NEEDED
 from owtf.lib.owtf_process import OWTFProcess
 from owtf.lib.exceptions import InvalidWorkerReference
 from owtf.utils.process import check_pid
 from owtf.utils.error import abort_framework
 from owtf.managers.error import add_error
-from owtf.plugin.plugin_handler import plugin_handler
-from owtf.db.database import get_scoped_session
 
 
 # For psutil
@@ -49,9 +48,9 @@ class Worker(OWTFProcess):
                     print("No work")
                     sys.exit(0)
                 target, plugin = work
-                plugin_dir = plugin_handler.get_plugin_group_dir(plugin['group'])
-                plugin_handler.switch_to_target(target["id"])
-                plugin_handler.process_plugin(session=self.session, plugin_dir=plugin_dir, plugin=plugin)
+                plugin_dir = g.plugin_handler.get_plugin_group_dir(plugin['group'])
+                g.plugin_handler.switch_to_target(target["id"])
+                g.plugin_handler.process_plugin(plugin_dir=plugin_dir, plugin=plugin)
                 self.output_q.put('done')
             except queue.Empty:
                 pass
@@ -60,7 +59,7 @@ class Worker(OWTFProcess):
                 sys.exit(0)
             except Exception as e:
                 e, ex, tb = sys.exc_info()
-                add_error(self.session, "Exception occurred while running plugin: {}, {}".format(str(e), str(ex)),
+                add_error("Exception occurred while running plugin: {}, {}".format(str(e), str(ex)),
                           str(traceback.format_tb(tb, 4096)))
         logging.debug("Worker (%d): Exiting...", self.pid)
         sys.exit(0)
@@ -72,7 +71,6 @@ class WorkerManager(object):
         self.keep_working = keep_working
         self.worklist = []  # List of unprocessed (plugin*target)
         self.workers = []  # list of worker and work (worker, work)
-        self.session = get_scoped_session()
         self.spawn_workers()
 
     def get_allowed_process_count(self):
@@ -93,7 +91,7 @@ class WorkerManager(object):
         work = None
         avail = psutil.virtual_memory().available
         if int(avail/1024/1024) > MIN_RAM_NEEDED:
-            work = get_work_for_target(self.session, self.targets_in_use())
+            work = get_work_for_target(self.targets_in_use())
         else:
             logging.warn("Not enough memory to execute a plugin")
         return work
@@ -361,7 +359,7 @@ class WorkerManager(object):
             self._signal_process(worker_dict["worker"].pid, signal.SIGINT)
             del self.workers[pseudo_index - 1]
         else:
-            raise InvalidWorkerReference("Worker with id %s is busy" % str(pseudo_index))
+            raise InvalidWorkerReference("Worker with id {} is busy".format(str(pseudo_index)))
 
     def pause_worker(self, pseudo_index):
         """Pause worker by sending SIGSTOP after verifying the process is running
@@ -429,6 +427,3 @@ class WorkerManager(object):
         # You only send SIGINT to worker since it will handle it more
         # gracefully and kick the command process's ***
         self._signal_process(worker_dict["worker"].pid, signal.SIGINT)
-
-
-worker_manager = WorkerManager(keep_working=not os.environ.get('CLI', CLI))

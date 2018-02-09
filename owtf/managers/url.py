@@ -4,11 +4,10 @@ owtf.db.url_manager
 
 The DB stores HTTP transactions, unique URLs and more.
 """
-
-from owtf.db import models
-from owtf.db.database import get_count, get_scoped_session
+from owtf.config import db
+from owtf.models import Url
 from owtf.lib.exceptions import InvalidParameterType
-# from owtf.managers import is_small_file_regex, is_file_regex, is_image_regex, is_ssi_regex, is_url_regex
+#from owtf.managers import is_small_file_regex, is_file_regex, is_image_regex, is_ssi_regex, is_url_regex
 from owtf.managers.target import target_required, is_url_in_scope
 from owtf.utils.strings import str2bool
 
@@ -74,7 +73,7 @@ def ssi_url(url):
 
 
 @target_required
-def add_urls_to_db(session, url, visited, found=None, target_id=None):
+def add_urls_to_db(url, visited, found=None, target_id=None):
     """Adds a URL to the DB
 
     :param url: URL to be added
@@ -93,8 +92,8 @@ def add_urls_to_db(session, url, visited, found=None, target_id=None):
         # can happen without this
         url = url.strip()
         scope = is_url_in_scope(url)
-        session.merge(models.Url(target_id=target_id, url=url, visited=visited, scope=scope))
-        session.commit()
+        db.session.merge(Url(target_id=target_id, url=url, visited=visited, scope=scope))
+        db.session.commit()
 
 
 def get_urls_to_visit():
@@ -105,8 +104,7 @@ def get_urls_to_visit():
     :return: List of not visited URLs
     :rtype: `list`
     """
-    session = get_scoped_session()
-    urls = session.query(models.Url.url).filter_by(visited=False).all()
+    urls = db.session.query(Url.url).filter_by(visited=False).all()
     urls = [i[0] for i in urls]
     return urls
 
@@ -123,7 +121,7 @@ def is_url(url):
 
 
 @target_required
-def add_url(session, url, found=None, target_id=None):
+def add_url(url, found=None, target_id=None):
     """Adds a URL to the relevant DBs if not already added
 
     :param url: URL to be added
@@ -138,11 +136,11 @@ def add_url(session, url, found=None, target_id=None):
     visited = False
     if found is not None:  # Visited URL -> Found in [ True, False ]
         visited = True
-    return add_urls_to_db(session, url, visited, found=found, target_id=target_id)
+    return add_urls_to_db(url, visited, found=found, target_id=target_id)
 
 
 @target_required
-def import_processed_url(session, urls_list, target_id=None):
+def import_processed_url(urls_list, target_id=None):
     """Imports a processed URL from the DB
 
     :param urls_list: List of URLs
@@ -153,8 +151,8 @@ def import_processed_url(session, urls_list, target_id=None):
     :rtype: None
     """
     for url, visited, scope in urls_list:
-        session.merge(models.Url(target_id=target_id, url=url, visited=visited, scope=scope))
-    session.commit()
+        db.session.merge(Url(target_id=target_id, url=url, visited=visited, scope=scope))
+    db.session.commit()
 
 
 @target_required
@@ -173,7 +171,7 @@ def import_urls(session, url_list, target_id=None):
     for url in url_list:
         if is_url(url):
             imported_urls.append(url)
-            session.merge(models.Url(url=url, target_id=target_id))
+            session.merge(Url(url=url, target_id=target_id))
     session.commit()
     return imported_urls  # Return imported urls
 
@@ -205,7 +203,7 @@ def derive_url_dicts(url_obj_list):
     return dict_list
 
 
-def url_gen_query(session, criteria, target_id, for_stats=False):
+def url_gen_query(criteria, target_id, for_stats=False):
     """Generate query based on criteria and target ID
 
     :param criteria: Filter criteria
@@ -217,19 +215,19 @@ def url_gen_query(session, criteria, target_id, for_stats=False):
     :return:
     :rtype:
     """
-    query = session.query(models.Url).filter_by(target_id=target_id)
+    query = Url.query.filter_by(target_id=target_id)
     # Check if criteria is url search
     if criteria.get('search', None):
         if criteria.get('url', None):
             if isinstance(criteria.get('url'), list):
                 criteria['url'] = criteria['url'][0]
-            query = query.filter(models.Url.url.like('%%%s%%' % criteria['url']))
+            query = query.filter(Url.url.like('%%%s%%' % criteria['url']))
     else:  # If not search
         if criteria.get('url', None):
             if isinstance(criteria.get('url'), str):
                 query = query.filter_by(url=criteria['url'])
             if isinstance(criteria.get('url'), list):
-                query = query.filter(models.Url.url.in_(criteria['url']))
+                query = query.filter(Url.url.in_(criteria['url']))
     # For the following section doesn't matter if filter/search because
     # it doesn't make sense to search in a boolean column :P
     if criteria.get('visited', None):
@@ -256,7 +254,7 @@ def url_gen_query(session, criteria, target_id, for_stats=False):
 
 
 @target_required
-def get_all_urls(session, criteria, target_id=None):
+def get_all_urls(criteria, target_id=None):
     """Get all URLs based on criteria and target ID
 
     :param criteria: Filter criteria
@@ -266,13 +264,13 @@ def get_all_urls(session, criteria, target_id=None):
     :return: List of URL dicts
     :rtype: `list`
     """
-    query = url_gen_query(session, criteria, target_id)
+    query = url_gen_query(criteria, target_id)
     results = query.all()
     return derive_url_dicts(results)
 
 
 @target_required
-def search_all_urls(session, criteria, target_id=None):
+def search_all_urls(criteria, target_id=None):
     """Search all URLs based on criteria and target ID
 
     .note::
@@ -288,9 +286,9 @@ def search_all_urls(session, criteria, target_id=None):
     :return: Search result dict
     :rtype: `dict`
     """
-    total = get_count(session.query(models.Url).filter_by(target_id=target_id))
-    filtered_url_objs = url_gen_query(session, criteria, target_id).all()
-    filtered_number = get_count(url_gen_query(session, criteria, target_id, for_stats=True))
+    total = Url.query.filter_by(target_id=target_id).count()
+    filtered_url_objs = url_gen_query(criteria, target_id).all()
+    filtered_number = url_gen_query(criteria, target_id, for_stats=True).count()
     results = {
         "records_total": total,
         "records_filtered": filtered_number,

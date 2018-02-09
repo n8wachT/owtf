@@ -16,10 +16,8 @@ import re
 from tornado.template import Template
 
 from owtf.api.reporter import reporter
-from owtf.db.database import get_scoped_session
 from owtf.http.requester import requester
 from owtf.lib.exceptions import FrameworkAbortException, PluginAbortException
-from owtf.managers.config import config_handler
 from owtf.managers.target import target_manager
 from owtf.managers.url import import_urls, get_urls_to_visit, add_url
 from owtf.plugin.plugin_handler import plugin_handler
@@ -43,7 +41,6 @@ class PluginHelper(object):
         self.requester = requester
         self.shell = shell
         self.timer = timer
-        self.session = get_scoped_session()
         # Compile regular expressions only once on init:
         self.robots_allow_regex = re.compile("Allow: ([^\n  #]+)")
         self.robots_disallow_regex = re.compile("Disallow: ([^\n #]+)")
@@ -173,7 +170,7 @@ class PluginHelper(object):
         ModifiedCommand = shell.get_modified_shell_cmd(Command, PluginOutputDir)
 
         try:
-            RawOutput = shell.shell_exec_monitor(self.session, ModifiedCommand, PluginInfo)
+            RawOutput = shell.shell_exec_monitor(ModifiedCommand, PluginInfo)
         except PluginAbortException as PartialOutput:
             RawOutput = str(PartialOutput.parameter)  # Save Partial Output
             PluginAbort = True
@@ -296,11 +293,11 @@ class PluginHelper(object):
                 for Entry in Entries:
                     if 'Sitemap Entries' == Display:
                         URL = Entry
-                        add_url(self.session, URL)  # Store real links in the DB
+                        add_url(URL)  # Store real links in the DB
                         Links.append([Entry, Entry])  # Show link in defined format (passive/semi_passive)
                     else:
                         URL = TopURL + Entry
-                        add_url(self.session, URL)  # Store real links in the DB
+                        add_url(URL)  # Store real links in the DB
                         # Show link in defined format (passive/semi_passive)
                         Links.append([Entry, LinkStart + Entry + LinkEnd])
                 EntriesList.append((Display, Links))
@@ -389,6 +386,3 @@ class PluginHelper(object):
         plugin_output["type"] = "TopTransactionsBySpeed"
         plugin_output["output"] = {"Order": Order}
         return ([plugin_output])
-
-
-plugin_helper = PluginHelper()

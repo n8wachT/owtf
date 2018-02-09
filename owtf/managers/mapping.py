@@ -13,8 +13,9 @@ try:
 except ImportError:
     import ConfigParser as parser
 
+from owtf.config import db
+from owtf.models import Mapping
 from owtf.utils.error import abort_framework
-from owtf.db import models
 from owtf.lib.exceptions import InvalidMappingReference
 
 
@@ -60,17 +61,17 @@ def derive_mapping_dicts(obj_list):
     return dict_list
 
 
-def get_all_mappings(session):
+def get_all_mappings():
     """Create a mapping between OWTF plugins code and OWTF plugins description.
 
     :return: Mapping dictionary {code: [mapped_code, mapped_description], code2: [mapped_code, mapped_description], ...}
     :rtype: dict
     """
-    mapping_objs = session.query(models.Mapping).all()
+    mapping_objs = Mapping.query.all()
     return {mapping['owtf_code']: mapping['mappings'] for mapping in derive_mapping_dicts(mapping_objs)}
 
 
-def get_mappings(session, mapping_type):
+def get_mappings(mapping_type):
     """Fetches mappings from DB based on mapping type
 
     :param mapping_type: Mapping type like OWTF, OWASP (v3, v4, Top 10), NIST, CWE
@@ -79,7 +80,7 @@ def get_mappings(session, mapping_type):
     :rtype: `dict`
     """
     if mapping_type in mapping_types:
-        mapping_objs = session.query(models.Mapping).all()
+        mapping_objs = Mapping.query.all()
         mappings = {}
         for mapping_dict in derive_mapping_dicts(mapping_objs):
             if mapping_dict["mappings"].get(mapping_type, None):
@@ -89,7 +90,7 @@ def get_mappings(session, mapping_type):
         raise InvalidMappingReference("InvalidMappingReference %s requested" % mapping_type)
 
 
-def get_mapping_category(session, plugin_code):
+def get_mapping_category(plugin_code):
     """Get the categories for a plugin code
 
     :param plugin_code: The code for the specific plugin
@@ -97,12 +98,12 @@ def get_mapping_category(session, plugin_code):
     :return: category for the plugin code
     :rtype: `str`
     """
-    category = session.query(models.Mapping.category).get(plugin_code)
+    category = db.session.query(Mapping.category).get(plugin_code)
     # Getting the corresponding category back from db
     return category
 
 
-def load_mappings_from_file(session, default, fallback):
+def load_mappings_from_file(default, fallback):
     """Loads the mappings from the config file
 
     .note::
@@ -134,5 +135,5 @@ def load_mappings_from_file(session, default, fallback):
                 mappings[mapping_type] = [mapped_code, mapped_name]
             else:
                 category = data
-        session.merge(models.Mapping(owtf_code=owtf_code, mappings=json.dumps(mappings), category=category))
-    session.commit()
+        db.session.merge(Mapping(owtf_code=owtf_code, mappings=json.dumps(mappings), category=category))
+    db.session.commit()

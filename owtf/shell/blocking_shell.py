@@ -14,8 +14,8 @@ from collections import defaultdict
 from sqlalchemy.exc import SQLAlchemyError
 
 from owtf.managers.command_register import command_already_registered, add_command
-from owtf.managers.target import target_manager
-from owtf.settings import USER_AGENT, INBOUND_PROXY_IP, INBOUND_PROXY_PORT
+#from owtf.managers.target import target_manager
+from owtf.constants import USER_AGENT, INBOUND_PROXY_IP, INBOUND_PROXY_PORT
 from owtf.utils.error import user_abort
 from owtf.utils.logger import logger
 from owtf.utils.strings import scrub_output, multi_replace_dict
@@ -41,7 +41,7 @@ class Shell(object):
         :return: None
         :rtype: None
         """
-        self.dynamic_replacements['###plugin_output_dir###'] = target_manager.get_path('plugin_output_dir')
+        self.dynamic_replacements['###plugin_output_dir###'] = g.target_manager.get_path('plugin_output_dir')
 
     def start_cmd(self, original_cmd, modified_cmd):
         """Start the timer and return the list of commands to run
@@ -82,7 +82,7 @@ class Shell(object):
             success = False
         cmd_info['Success'] = success
         cmd_info['RunTime'] = self.timer.get_elapsed_time_as_str(self.command_time_offset)
-        cmd_info['Target'] = target_manager.get_target_id()
+        cmd_info['Target'] = g.target_manager.get_target_id()
         cmd_info['PluginKey'] = plugin_info["key"]
         add_command(session=session, command=cmd_info)
 

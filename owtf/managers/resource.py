@@ -3,18 +3,17 @@ owtf.db.resource_manager
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 """
-
 import logging
 import os
 
-from owtf import get_scoped_session
-from owtf.db import models
+from owtf.config import db
+from owtf.models import Resource
 from owtf.managers.config import get_replacement_dict
 from owtf.utils.file import FileOperations
 from owtf.utils.strings import  multi_replace
 
 
-def get_raw_resources(session, resource_type):
+def get_raw_resources(resource_type):
     """Fetch raw resources filtered on type
 
     :param resource_type: Resource type
@@ -22,15 +21,15 @@ def get_raw_resources(session, resource_type):
     :return: List of raw resources
     :rtype: `list`
     """
-    filter_query = session.query(models.Resource.resource_name, models.Resource.resource).filter_by(
+    filter_query = db.session.query(Resource.resource_name, Resource.resource).filter_by(
         resource_type=resource_type)
     # Sorting is necessary for working of ExtractURLs, since it must run after main command, so order is imp
-    sort_query = filter_query.order_by(models.Resource.id)
+    sort_query = filter_query.order_by(Resource.id)
     raw_resources = sort_query.all()
     return raw_resources
 
 
-def get_rsrc_replacement_dict(session):
+def get_rsrc_replacement_dict():
     """Get the configuration update changes as a dict
     :return:
     :rtype:
@@ -38,7 +37,7 @@ def get_rsrc_replacement_dict(session):
     from owtf.managers.target import target_manager
     from owtf.managers.config import config_handler
 
-    configuration = get_replacement_dict(session)
+    configuration = get_replacement_dict()
     configuration.update(target_manager.get_target_config())
     configuration.update(config_handler.get_replacement_dict())
     configuration.update(config_handler.get_framework_config_dict()) # for aux plugins
@@ -53,16 +52,15 @@ def get_resources(resource_type):
     :return: List of resources
     :rtype: `list`
     """
-    session = get_scoped_session()
-    replacement_dict = get_rsrc_replacement_dict(session)
-    raw_resources = get_raw_resources(session, resource_type)
+    replacement_dict = get_rsrc_replacement_dict()
+    raw_resources = get_raw_resources(resource_type)
     resources = []
     for name, resource in raw_resources:
         resources.append([name, multi_replace(resource, replacement_dict)])
     return resources
 
 
-def get_raw_resource_list(session, resource_list):
+def get_raw_resource_list(resource_list):
     """Get raw resources as from a resource list
 
     :param resource_list: List of resource types
@@ -70,12 +68,12 @@ def get_raw_resource_list(session, resource_list):
     :return: List of raw resources
     :rtype: `list`
     """
-    raw_resources = session.query(models.Resource.resource_name, models.Resource.resource).filter(
-        models.Resource.resource_type.in_(resource_list)).all()
+    raw_resources = db.session.query(Resource.resource_name, Resource.resource).filter(
+        Resource.resource_type.in_(resource_list)).all()
     return raw_resources
 
 
-def get_resource_list(session, resource_type_list):
+def get_resource_list(resource_type_list):
     """Get list of resources from list of types
 
     :param resource_type_list: List of resource types
@@ -83,8 +81,8 @@ def get_resource_list(session, resource_type_list):
     :return: List of resources
     :rtype: `list`
     """
-    replacement_dict = get_rsrc_replacement_dict(session)
-    raw_resources = get_raw_resource_list(session, resource_type_list)
+    replacement_dict = get_rsrc_replacement_dict()
+    raw_resources = get_raw_resource_list(resource_type_list)
     resources = []
     for name, resource in raw_resources:
         resources.append([name, multi_replace(resource, replacement_dict)])
@@ -108,11 +106,12 @@ def get_resources_from_file(resource_file):
             type, name, resource = line.split('_____')
             resources.add((type, name, resource))
         except ValueError:
-            logging.info("ERROR: The delimiter is incorrect in this line at Resource File: %s" % str(line.split('_____')))
+            logging.info("ERROR: The delimiter is incorrect in this line at Resource File: %s",
+                         str(line.split('_____')))
     return resources
 
 
-def load_resources_from_file(session, default, fallback):
+def load_resources_from_file(default, fallback):
     """Parses the resources config file and loads data into the DB
     .note::
         This needs to be a list instead of a dictionary to preserve order in python < 2.7
@@ -129,7 +128,7 @@ def load_resources_from_file(session, default, fallback):
     resources = get_resources_from_file(file_path)
     # Delete all old resources which are not edited by user
     # because we may have updated the resource
-    session.query(models.Resource).filter_by(dirty=False).delete()
+    Resource.query.filter_by(dirty=False).delete()
     for type, name, resource in resources:
-        session.add(models.Resource(resource_type=type, resource_name=name, resource=resource))
-    session.commit()
+        db.session.add(Resource(resource_type=type, resource_name=name, resource=resource))
+    db.session.commit()

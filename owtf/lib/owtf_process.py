@@ -10,11 +10,8 @@ from multiprocessing import Process, Queue
 import signal
 import sys
 import multiprocessing
-import os
 
-from owtf.db.database import get_scoped_session
 from owtf.utils.logger import logger
-from owtf.utils.process import kill_children
 
 
 def signal_handler(signal, frame):
@@ -36,7 +33,6 @@ class OWTFProcess(Process):
         self.poison_q = Queue()
         self._process = None
         self.output_q = None
-        self.session = get_scoped_session()
         self.logger = logger
         signal.signal(signal.SIGINT, signal_handler)
         self.logger.setup_logging()

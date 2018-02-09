@@ -153,11 +153,6 @@ def parse_options(cli_options, valid_groups, valid_types):
              "for the given ip and port. The 'type' can be 'http'(default) "
              "or 'socks'")
     parser.add_argument(
-        "-xa", "--outbound_proxy_auth",
-        dest="OutboundProxyAuth",
-        default=None,
-        help="username:password - Credentials if any for outbound proxy")
-    parser.add_argument(
         "-T", "--tor",
         dest="TOR_mode",
         default=None,

@@ -5,22 +5,20 @@ owtf.db.config_manager
 """
 import logging
 import os
-
-
 try:
     import configparser as parser
 except ImportError:
     import ConfigParser as parser
 
+from owtf.config import db
 from owtf.utils.strings import multi_replace, str2bool
 from owtf.lib.exceptions import InvalidConfigurationReference
-from owtf.db import models
-from owtf.config import config_handler
+from owtf.models import ConfigSetting
 from owtf.utils.error import abort_framework
 from owtf.utils.file import FileOperations
 
 
-def load_config_db_file(session, default, fallback):
+def load_config_db_file(default, fallback):
     """Load Db config from file
 
     :param file_path: The path to config file
@@ -39,15 +37,15 @@ def load_config_db_file(session, default, fallback):
     config_parser.read(file_path)
     for section in config_parser.sections():
         for key, value in config_parser.items(section):
-            old_config_obj = session.query(models.ConfigSetting).get(key)
+            old_config_obj = ConfigSetting.query.get(key)
             if not old_config_obj or not old_config_obj.dirty:
                 if not key.endswith("_DESCRIP"):  # _DESCRIP are help values
-                    config_obj = models.ConfigSetting(key=key, value=value, section=section)
+                    config_obj = ConfigSetting(key=key, value=value, section=section)
                     # If _DESCRIP at the end, then use it as help text
                     if config_parser.has_option(section, "%s_DESCRIP" % key):
                         config_obj.descrip = config_parser.get(section, "%s_DESCRIP" % key)
-                    session.merge(config_obj)
-    session.commit()
+                    db.session.merge(config_obj)
+    db.session.commit()
 
 
 def load_framework_config_file(default, fallback, root_dir, owtf_pid):
@@ -74,7 +72,7 @@ def load_framework_config_file(default, fallback, root_dir, owtf_pid):
             abort_framework("Problem in config file: {} -> Cannot parse line: {}".format(config_path, line))
 
 
-def get_config_val(session, key):
+def get_config_val(key):
     """Get the value of the key from DB
 
     :param key: Key to lookup
@@ -82,7 +80,7 @@ def get_config_val(session, key):
     :return: Value
     :rtype: `str`
     """
-    obj = session.query(models.ConfigSetting).get(key)
+    obj = ConfigSetting.query.get(key)
     if obj:
         return multi_replace(obj.value, config_handler.get_replacement_dict())
     else:
@@ -120,7 +118,7 @@ def derive_config_dicts(config_obj_list):
     return config_dict_list
 
 
-def config_gen_query(session, criteria):
+def config_gen_query(criteria):
     """Generate query
 
     :param criteria: Filter criteria
@@ -128,25 +126,25 @@ def config_gen_query(session, criteria):
     :return:
     :rtype:
     """
-    query = session.query(models.ConfigSetting)
+    query = ConfigSetting.query()
     if criteria.get("key", None):
         if isinstance(criteria["key"], str):
             query = query.filter_by(key=criteria["key"])
         if isinstance(criteria["key"], list):
-            query = query.filter(models.ConfigSetting.key.in_(criteria["key"]))
+            query = query.filter(ConfigSetting.key.in_(criteria["key"]))
     if criteria.get("section", None):
         if isinstance(criteria["section"], str):
             query = query.filter_by(section=criteria["section"])
         if isinstance(criteria["section"], list):
-            query = query.filter(models.ConfigSetting.section.in_(criteria["section"]))
+            query = query.filter(ConfigSetting.section.in_(criteria["section"]))
     if criteria.get('dirty', None):
         if isinstance(criteria.get('dirty'), list):
             criteria['dirty'] = criteria['dirty'][0]
         query = query.filter_by(dirty=str2bool(criteria['dirty']))
-    return query.order_by(models.ConfigSetting.key)
+    return query.order_by(ConfigSetting.key)
 
 
-def get_all_config_dicts(session, criteria=None):
+def get_all_config_dicts(criteria=None):
     """Get all config dicts for a criteria
 
     :param criteria: Filter criteria
@@ -156,35 +154,35 @@ def get_all_config_dicts(session, criteria=None):
     """
     if not criteria:
         criteria = {}
-    query = config_gen_query(session, criteria)
+    query = config_gen_query(criteria)
     return derive_config_dicts(query.all())
 
 
-def get_all_tools(session):
+def get_all_tools():
     """Get all tools from the config DB
 
     :return: Config dict for all tools
     :rtype: `dict`
     """
-    results = session.query(models.ConfigSetting).filter(models.ConfigSetting.key.like("%TOOL_%")).all()
+    results = ConfigSetting.query.filter(ConfigSetting.key.like("%TOOL_%")).all()
     config_dicts = derive_config_dicts(results)
     for config_dict in config_dicts:
         config_dict["value"] = multi_replace(config_dict["value"], config_handler.get_replacement_dict())
     return config_dicts
 
 
-def get_sections_config(session):
+def get_sections_config():
     """Get all sections in from the config db
 
     :return: List of sections
     :rtype: `list`
     """
-    sections = session.query(models.ConfigSetting.section).distinct().all()
+    sections = db.session.query(ConfigSetting.section).distinct().all()
     sections = [i[0] for i in sections]
     return sections
 
 
-def update_config_val(session, key, value):
+def update_config_val(key, value):
     """Update the configuration value for a key
 
     :param key: Key whose value to update
@@ -194,24 +192,24 @@ def update_config_val(session, key, value):
     :return: None
     :rtype: None
     """
-    config_obj = session.query(models.ConfigSetting).get(key)
+    config_obj = ConfigSetting.query.get(key)
     if config_obj:
         config_obj.value = value
         config_obj.dirty = True
-        session.merge(config_obj)
-        session.commit()
+        db.session.merge(config_obj)
+        db.session.commit()
     else:
         raise InvalidConfigurationReference("No setting exists with key: %s" % str(key))
 
 
-def get_replacement_dict(session):
+def get_replacement_dict():
     """Get the config dict
 
     :return: Replaced dict
     :rtype: `dict`
     """
     config_dict = {}
-    config_list = session.query(models.ConfigSetting.key, models.ConfigSetting.value).all()
+    config_list = db.session.query(ConfigSetting.key, ConfigSetting.value).all()
     for key, value in config_list:  # Need a dict
         config_dict[key] = value
     return config_dict

@@ -5,20 +5,18 @@ owtf.db.target_manager
 """
 import logging
 import os
-
-from owtf.plugin.plugin_params import plugin_params
 try:
     from urllib.parse import urlparse
 except ImportError:
     from urlparse import urlparse
 
-from owtf.db.database import get_count, get_scoped_session
-from owtf.settings import OUTPUT_PATH
+from owtf.config import db
+from owtf.constants import OUTPUT_PATH
 from owtf.utils.file import create_output_dir_target, get_target_dir, cleanup_target_dirs
 from owtf.utils.strings import  str2bool
 from owtf.lib.exceptions import DBIntegrityException, InvalidTargetReference, InvalidParameterType, \
     UnresolvableTargetException
-from owtf.db import models
+from owtf.models import Target, Session
 from owtf.managers.session import session_required, add_target_to_session
 from owtf.utils.ip import get_ip_from_hostname, get_ips_from_hostname
 
@@ -66,13 +64,12 @@ def target_required(func):
 
 
 class TargetManager(object):
-    # All these variables reflect to current target which is referenced by a unique ID
-    target_id = None
-    target_config = dict(TARGET_CONFIG)
-    path_config = dict(PATH_CONFIG)
 
     def __init__(self):
-        self.session = get_scoped_session()
+        # All these variables reflect to current target which is referenced by a unique ID
+        self.target_id = None
+        self.target_config = dict(TARGET_CONFIG)
+        self.path_config = dict(PATH_CONFIG)
 
     def set_target(self, target_id):
         """Set a target by ID
@@ -83,10 +80,10 @@ class TargetManager(object):
         """
         try:
             self.target_id = target_id
-            self.target_config = get_target_config_by_id(self.session, target_id)
+            self.target_config = get_target_config_by_id(target_id)
             self.path_config = self.get_path_configs(self.target_config)
         except InvalidTargetReference:
-            raise InvalidTargetReference("0. Target doesn't exist: %s" % str(target_id))
+            raise InvalidTargetReference("Target doesn't exist: {}".format(str(target_id)))
 
     def get_path_configs(self, target_config):
         """Get paths to output directories
@@ -134,7 +131,7 @@ class TargetManager(object):
         :return: List of target urls
         :rtype: `list`
         """
-        return get_all_targets(self.session, "target_url")
+        return get_all_targets("target_url")
 
     def get_target_config(self):
         """Return target config
@@ -165,13 +162,12 @@ def get_indexed_targets():
     :return:
     :rtype:
     """
-    session = get_scoped_session()
-    results = session.query(models.Target.id, models.Target.target_url).all()
+    results = db.session.query(Target.id, Target.target_url).all()
     return results
 
 
 @session_required
-def add_target(session, target_url, session_id=None):
+def add_target(target_url, session_id=None):
     """Adds a target to session
 
     :param target_url: Target url
@@ -181,11 +177,11 @@ def add_target(session, target_url, session_id=None):
     :return: None
     :rtype: None
     """
-    if target_url not in get_all_targets(session, "target_url"):
+    if target_url not in get_all_targets("target_url"):
         # A try-except can be used here, but then ip-resolution takes time
         # even if target is present
         target_config = derive_config_from_url(target_url)
-        config_obj = models.Target(target_url=target_url)
+        config_obj = Target(target_url=target_url)
         config_obj.host_name = target_config["host_name"]
         config_obj.host_path = target_config["host_path"]
         config_obj.url_scheme = target_config["url_scheme"]
@@ -195,23 +191,23 @@ def add_target(session, target_url, session_id=None):
         config_obj.ip_url = target_config["ip_url"]
         config_obj.top_domain = target_config["top_domain"]
         config_obj.top_url = target_config["top_url"]
-        session.add(config_obj)
-        config_obj.sessions.append(session.query(models.Session).get(session_id))
-        session.commit()
+        db.session.add(config_obj)
+        config_obj.sessions.append(Session.query.get(session_id))
+        db.session.commit()
         target_id = config_obj.id
         create_missing_dirs_target(target_url)
         target_manager.set_target(target_id)
     else:
-        session_obj = session.query(models.Session).get(session_id)
-        target_obj = session.query(models.Target).filter_by(target_url=target_url).one()
+        session_obj = Session.query.get(session_id)
+        target_obj = Target.query.filter_by(target_url=target_url).one()
         if session_obj in target_obj.sessions:
-            raise DBIntegrityException("%s already present in Target DB & session" % target_url)
+            raise DBIntegrityException("{} already present in Target DB & session".format(target_url))
         else:
-            add_target_to_session(session, target_obj.id, session_id=session_obj.id)
+            add_target_to_session(target_obj.id, session_id=session_obj.id)
 
 
 @session_required
-def add_targets(session, target_urls, session_id=None):
+def add_targets(target_urls, session_id=None):
     """Add multiple targets
 
     :param target_urls: List of target urls
@@ -222,10 +218,10 @@ def add_targets(session, target_urls, session_id=None):
     :rtype: None
     """
     for target_url in target_urls:
-        add_target(session, target_url, session_id=session_id)
+        add_target(target_url, session_id=session_id)
 
 
-def update_target(session, data_dict, target_url=None, id=None):
+def update_target(data_dict, target_url=None, id=None):
     """Update a target in the DB
 
     :param data_dict: Modified data
@@ -239,18 +235,18 @@ def update_target(session, data_dict, target_url=None, id=None):
     """
     target_obj = None
     if id:
-        target_obj = session.query(models.Target).get(id)
+        target_obj = Target.query.get(id)
     if target_url:
-        target_obj = session.query(models.Target).filter_by(target_url=target_url).one()
+        target_obj = Target.query.filter_by(target_url=target_url).one()
     if not target_obj:
         raise InvalidTargetReference("2. Target doesn't exist: %s" % str(id) if id else str(target_url))
     # TODO: Updating all related attributes when one attribute is changed
     if data_dict.get("scope", None) is not None:
         target_obj.scope = str2bool(data_dict.get("scope", None))
-    session.commit()
+    db.session.commit()
 
 
-def delete_target(session, target_url=None, id=None):
+def delete_target(target_url=None, id=None):
     """Delete a target from DB
 
     :param target_url: target URL
@@ -262,15 +258,15 @@ def delete_target(session, target_url=None, id=None):
     """
     target_obj = None
     if id:
-        target_obj = session.query(models.Target).get(id)
+        target_obj = Target.query.get(id)
     if target_url:
-        target_obj = session.query(models.Target).filter_by(target_url=target_url).one()
+        target_obj = Target.query.filter_by(target_url=target_url).one()
     if not target_obj:
         raise InvalidTargetReference("3. Target doesn't exist: %s" % str(id) if id else str(target_url))
     if target_obj:
         target_url = target_obj.target_url
-        session.delete(target_obj)
-        session.commit()
+        db.session.delete(target_obj)
+        db.session.commit()
     cleanup_target_dirs(target_url)
 
 
@@ -285,7 +281,7 @@ def create_missing_dirs_target(target_url):
     create_output_dir_target(target_url)
 
 
-def get_target_url_for_id(session, id):
+def get_target_url_for_id(id):
     """Get target URL by target ID
 
     :param id: target ID
@@ -293,14 +289,14 @@ def get_target_url_for_id(session, id):
     :return: Target url
     :rtype: `str`
     """
-    target_obj = session.query(models.Target).get(id)
+    target_obj = Target.query.get(id)
     if not target_obj:
         logging.info("Failing with ID: %s" % str(id))
         raise InvalidTargetReference("1. Target doesn't exist with ID: %s" % str(id))
     return target_obj.target_url
 
 
-def get_target_config_by_id(session, id):
+def get_target_config_by_id(id):
     """Get target config by id
 
     :param id: Target id
@@ -308,13 +304,13 @@ def get_target_config_by_id(session, id):
     :return: Config dict
     :rtype: `dict`
     """
-    target_obj = session.query(models.Target).get(id)
+    target_obj = Target.query.get(id)
     if not target_obj:
         raise InvalidTargetReference("5. Target doesn't exist: %s" % str(id))
     return get_target_config_dict(target_obj)
 
 
-def target_gen_query(session, filter_data, session_id, for_stats=False):
+def target_gen_query(filter_data, session_id, for_stats=False):
     """Generate query
 
     :param filter_data: Filter data
@@ -326,23 +322,23 @@ def target_gen_query(session, filter_data, session_id, for_stats=False):
     :return:
     :rtype:
     """
-    query = session.query(models.Target).filter(models.Target.sessions.any(id=session_id))
+    query = Target.query.filter(Target.sessions.any(id=session_id))
     if filter_data.get("search") is not None:
         if filter_data.get('target_url', None):
             if isinstance(filter_data.get('target_url'), list):
                 filter_data['target_url'] = filter_data['target_url'][0]
-            query = query.filter(models.Target.target_url.like("%%%s%%" % filter_data['target_url']))
+            query = query.filter(Target.target_url.like("%%%s%%" % filter_data['target_url']))
     else:
         if filter_data.get("target_url", None):
             if isinstance(filter_data["target_url"], str):
                 query = query.filter_by(target_url=filter_data["target_url"])
             if isinstance(filter_data["target_url"], list):
-                query = query.filter(models.Target.target_url.in_(filter_data.get("target_url")))
+                query = query.filter(Target.target_url.in_(filter_data.get("target_url")))
         if filter_data.get("host_ip", None):
             if isinstance(filter_data["host_ip"], str):
                 query = query.filter_by(host_ip=filter_data["host_ip"])
             if isinstance(filter_data["host_ip"], list):
-                query = query.filter(models.Target.host_ip.in_(filter_data.get("host_ip")))
+                query = query.filter(Target.host_ip.in_(filter_data.get("host_ip")))
         if filter_data.get("scope", None):
             filter_data["scope"] = filter_data["scope"][0]
             query = query.filter_by(scope=str2bool(filter_data.get("scope")))
@@ -350,14 +346,14 @@ def target_gen_query(session, filter_data, session_id, for_stats=False):
             if isinstance(filter_data["host_name"], str):
                 query = query.filter_by(host_name=filter_data["host_name"])
             if isinstance(filter_data["host_name"], list):
-                query = query.filter(models.Target.host_name.in_(filter_data.get("host_name")))
+                query = query.filter(Target.host_name.in_(filter_data.get("host_name")))
         if filter_data.get("id", None):
             if isinstance(filter_data["id"], str):
                 query = query.filter_by(id=filter_data["id"])
             if isinstance(filter_data["id"], list):
-                query = query.filter(models.Target.id.in_(filter_data.get("id")))
+                query = query.filter(Target.id.in_(filter_data.get("id")))
     # This will allow new targets to be at the start
-    query = query.order_by(models.Target.id.desc())
+    query = query.order_by(Target.id.desc())
     if not for_stats:  # query for stats shouldn't have limit and offset
         try:
             if filter_data.get('offset', None):
@@ -375,7 +371,7 @@ def target_gen_query(session, filter_data, session_id, for_stats=False):
 
 
 @session_required
-def search_target_configs(session, filter_data=None, session_id=None):
+def search_target_configs(filter_data=None, session_id=None):
     """Three things needed
     + Total number of targets
     + Filtered target dicts
@@ -388,9 +384,9 @@ def search_target_configs(session, filter_data=None, session_id=None):
     :return: results
     :rtype: `dict`
     """
-    total = get_count(session.query(models.Target).filter(models.Target.sessions.any(id=session_id)))
-    filtered_target_objs = target_gen_query(session, filter_data, session_id).all()
-    filtered_number = get_count(target_gen_query(session, filter_data, session_id, for_stats=True))
+    total = Target.query.filter(Target.sessions.any(id=session_id)).count()
+    filtered_target_objs = target_gen_query(filter_data, session_id).all()
+    filtered_number = target_gen_query(filter_data, session_id, for_stats=True).count()
     results = {
         "records_total": total,
         "records_filtered": filtered_number,
@@ -400,7 +396,7 @@ def search_target_configs(session, filter_data=None, session_id=None):
 
 
 @session_required
-def get_target_config_dicts(session, filter_data=None, session_id=None):
+def get_target_config_dicts(filter_data=None, session_id=None):
     """Get list of target config dicts
 
     :param filter_data: Filter criteria
@@ -412,7 +408,7 @@ def get_target_config_dicts(session, filter_data=None, session_id=None):
     """
     if filter_data is None:
         filter_data = {}
-    target_obj_list = target_gen_query(session=session, filter_data=filter_data, session_id=session_id).all()
+    target_obj_list = target_gen_query(filter_data=filter_data, session_id=session_id).all()
     return get_target_configs(target_obj_list)
 
 
@@ -454,14 +450,13 @@ def get_targets_as_list(key_list):
     :return: Values list
     :rtype: `list`
     """
-    session = get_scoped_session()
     values = []
     for key in key_list:
-        values.append(get_all_targets(session, key))
+        values.append(get_all_targets(key))
     return values
 
 
-def get_all_targets(session, key):
+def get_all_targets(key):
     """Get all targets by key
 
     :param key: Target key
@@ -469,7 +464,7 @@ def get_all_targets(session, key):
     :return:
     :rtype:
     """
-    results = session.query(getattr(models.Target, key.lower())).all()
+    results = db.session.query(getattr(Target, key.lower())).all()
     results = [result[0] for result in results]
     return results
 
@@ -482,8 +477,7 @@ def get_all_in_scope(key):
     :return: List of target keys
     :rtype: `list`
     """
-    session = get_scoped_session()
-    results = session.query(getattr(models.Target, key.lower())).filter_by(scope=True).all()
+    results = db.session.query(getattr(Target, key.lower())).filter_by(scope=True).all()
     results = [result[0] for result in results]
     return results
 
@@ -504,7 +498,7 @@ def is_url_in_scope(url):
     return False
 
 
-def load_targets(session, options):
+def load_targets(scope):
     """Load targets into the DB
 
     :param options: User supplied arguments
@@ -512,19 +506,16 @@ def load_targets(session, options):
     :return: Added targets
     :rtype: `list`
     """
-    scope = options['Scope']
-    if options['PluginGroup'] == 'auxiliary':
-        scope = get_aux_target()
     added_targets = []
     for target in scope:
         try:
-            add_target(session=session, target_url=target)
+            add_target(target)
             added_targets.append(target)
         except DBIntegrityException:
-            logging.warning("%s already exists in DB" % target)
+            logging.warning("%s already exists in DB", target)
             added_targets.append(target)
         except UnresolvableTargetException as e:
-            logging.error("%s" % e.parameter)
+            logging.error("%s", e.parameter)
     return added_targets
 
 
@@ -540,24 +531,26 @@ def get_aux_target():
     # so "target_params" is a list of possible parameters by which user can give target
     target_params = ['RHOST', 'TARGET', 'SMB_HOST', 'BASE_URL', 'SMTP_HOST']
     targets = None
-    if plugin_params.process_args():
+
+    from flask import g
+    if g.plugin_params.process_args():
         for param in target_params:
-            if param in plugin_params.args:
-                targets = plugin_params.args[param]
+            if param in g.plugin_params.args:
+                targets = g.plugin_params.args[param]
                 break  # it will capture only the first one matched
         repeat_delim = ','
         if targets is None:
             logging.error("Aux target not found! See your plugin accepted parameters in ./plugins/ folder")
             return []
-        if 'REPEAT_DELIM' in plugin_params.args:
-            repeat_delim = plugin_params.args['REPEAT_DELIM']
+        if 'REPEAT_DELIM' in g.plugin_params.args:
+            repeat_delim = g.plugin_params.args['REPEAT_DELIM']
         return targets.split(repeat_delim)
     else:
         return []
 
 
 @session_required
-def get_targets_by_severity_count(session, session_id=None):
+def get_targets_by_severity_count(session_id=None):
     """Get targets by severity count
 
     :param session_id: session ID
@@ -577,8 +570,8 @@ def get_targets_by_severity_count(session, session_id=None):
         {"id":5, "label": "High", "value": 0, "color": "#c12e2a"},
         {"id":6, "label": "Critical", "value": 0, "color": "#800080"}
     ]
-    total = session.query(models.Target).filter(models.Target.sessions.any(id=session_id)).count()
-    target_objs = session.query(models.Target).filter(models.Target.sessions.any(id=session_id)).all()
+    total = Target.query.filter(Target.sessions.any(id=session_id)).count()
+    target_objs = Target.query.filter(Target.sessions.any(id=session_id)).all()
 
     for target_obj in target_objs:
         if target_obj.max_user_rank != -1:
@@ -660,7 +653,3 @@ def derive_config_from_url(target_url):
         target_config['top_domain'] = ''
         target_config['top_url'] = ''
     return target_config
-
-
-# Define the service
-target_manager = TargetManager()

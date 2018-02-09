@@ -1,13 +1,13 @@
 import logging
 
 import tornado
+import tornado.web
 import tornado.ioloop
 import tornado.httpserver
 import tornado.options
 
-from owtf.utils.app import Application
-from owtf.settings import TEMPLATES, FILE_SERVER_PORT, SERVER_ADDR, FILE_SERVER_LOG
-from owtf.filesrv.routes import HANDLERS
+from owtf.constants import TEMPLATES, FILE_SERVER_PORT, FILE_SERVER_LOG
+from owtf.file_server.routes import HANDLERS
 from owtf.managers.worker import worker_manager
 from owtf.utils.logger import logger
 
@@ -17,7 +17,7 @@ class FileServer(object):
     def start(self):
         try:
             self.worker_manager = worker_manager
-            self.application = Application(
+            self.application = tornado.web.Application(
                 handlers=HANDLERS,
                 template_path=TEMPLATES,
                 debug=False,
@@ -27,7 +27,7 @@ class FileServer(object):
             self.logger.setup_logging()
             self.logger.disable_console_logging()
             self.server = tornado.httpserver.HTTPServer(self.application)
-            self.server.bind(int(FILE_SERVER_PORT), address=SERVER_ADDR)
+            self.server.bind(int(FILE_SERVER_PORT), address="127.0.0.1")
             tornado.options.parse_command_line(
                 args=['dummy_arg', '--log_file_prefix={}'.format(FILE_SERVER_LOG), '--logging=info'])
             self.server.start()

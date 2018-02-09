@@ -14,10 +14,6 @@ from setuptools.command.install import install
 
 
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
-_version_re = re.compile(r'__version__\s+=\s+(.*)')
-
-with open('owtf/__init__.py', 'rb') as f:
-    version = str(ast.literal_eval(_version_re.search(f.read().decode('utf-8')).group(1)))
 
 def parse_file(filename, encoding='utf-8'):
   """Return contents of the given file using the given encoding."""
@@ -47,9 +43,12 @@ tests_requires = [
     'mock>=1.3.0',
 ]
 
-docs_requires = [
+dev_requires = [
     'sphinx',
-    'sphinx_py3doc_enhanced_theme'
+    'sphinx_py3doc_enhanced_theme',
+    'flake8==3.3.0',
+    'autopep8==1.3.3',
+    'pycodestyle==2.3.1'
 ]
 
 class PostDevelopCommand(develop):
@@ -78,7 +77,7 @@ if sys.version_info < (2, 7, 9):
 
 setup(
     name='owtf',
-    version=version,
+    version="2.3.2",
     url='https://github.com/owtf/owtf',
     license='BSD',
     author="Abraham Aranguren",
@@ -89,21 +88,18 @@ setup(
     include_package_data=True,
     zip_safe=False,
     platforms='any',
-    install_requires=sorted(requires, key=lambda s: s.split("==")[0].lower()),
+    install_requires=sorted(requires, key=lambda s: s.split("==")[0].lower())+tests_requires+dev_requires,
     dependency_links=links,
     extras_require={
-        'test': tests_requires + requires,
-        'docs': docs_requires
+        'dev': dev_requires,
+        'test': tests_requires + requires
     },
     cmdclass={
         'develop': PostDevelopCommand,
         'install': PostInstallCommand,
     },
-    scripts=['bin/owtf-cli'],
     entry_points={
-        'console_scripts': [
-            'owtf = owtf.core:main'
-        ]
+        'console_scripts': ['owtf=owtf.cli:main']
     },
     classifiers=[
         'License :: OSI Approved :: BSD License',

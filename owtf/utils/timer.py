@@ -10,7 +10,7 @@ human-readable form.
 import math
 import datetime
 
-from owtf.settings import DATE_TIME_FORMAT
+from owtf.constants import DATE_TIME_FORMAT
 
 
 class Timer(object):

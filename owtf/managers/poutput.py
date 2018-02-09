@@ -7,18 +7,19 @@ owtf.db.poutput_manager
 import json
 import os
 
-from owtf.db import models
-from owtf.db.database import get_count
+from flask import current_app, g
+
+from owtf.config import db
+from owtf.models import PluginOutput, Work, Target
 from owtf.lib.exceptions import InvalidParameterType
 from owtf.managers.session import session_required
-from owtf.managers.target import target_manager
 from owtf.managers.target import target_required
-from owtf.settings import DATE_TIME_FORMAT
+from owtf.constants import DATE_TIME_FORMAT
 from owtf.utils.file import FileOperations, get_output_dir_target
 from owtf.utils.timer import timer
 
 
-def plugin_output_exists(session, plugin_key, target_id):
+def plugin_output_exists(plugin_key, target_id):
     """Check if output exists
 
     :param plugin_key: plugin key
@@ -28,20 +29,19 @@ def plugin_output_exists(session, plugin_key, target_id):
     :return: True if count > 0
     :rtype: `bool`
     """
-    count = get_count(session.query(models.PluginOutput).filter_by(target_id=target_id, plugin_key=plugin_key))
+    count = PluginOutput.query.filter_by(target_id=target_id, plugin_key=plugin_key).count()
     return count > 0
 
 
-def plugin_count_output(session):
+def plugin_count_output():
     """Get count stats
 
     :return: Count stats
     :rtype: `dict`
     """
-    from owtf.managers.worker import worker_manager
-    complete_count = get_count(session.query(models.PluginOutput))
-    left_count = get_count(session.query(models.Work))
-    left_count += worker_manager.get_busy_workers()
+    complete_count = PluginOutput.query.count()
+    left_count = Work.query.count()
+    left_count += g.worker_manager.get_busy_workers()
     results = {'complete_count': complete_count, 'left_count': left_count}
     return results
 
@@ -75,7 +75,7 @@ def get_plugin_output_dict(obj, target_id=None, inc_output=False):
     :rtype: `dict`
     """
     if target_id:
-        target_manager.set_target(target_id)
+        g.target_manager.set_target(target_id)
     if obj:
         pdict = dict(obj.__dict__)
         pdict.pop("_sa_instance_state", None)
@@ -91,6 +91,7 @@ def get_plugin_output_dict(obj, target_id=None, inc_output=False):
         pdict["run_time"] = timer.get_time_as_str(obj.run_time)
         return pdict
 
+
 @target_required
 def get_plugin_output_dicts(obj_list, target_id=None, inc_output=False):
     """Get plugin output dicts from a list of objects
@@ -105,14 +106,14 @@ def get_plugin_output_dicts(obj_list, target_id=None, inc_output=False):
     :rtype: `list`
     """
     if target_id:
-        target_manager.set_target(target_id)
+        g.target_manager.set_target(target_id)
     dict_list = []
     for obj in obj_list:
         dict_list.append(get_plugin_output_dict(obj, target_id=target_id, inc_output=inc_output))
     return dict_list
 
 
-def poutput_gen_query(session, filter_data, target_id, for_delete=False):
+def poutput_gen_query(filter_data, target_id, for_delete=False):
     """Generate query
 
     :param filter_data: Filter criteria
@@ -124,51 +125,51 @@ def poutput_gen_query(session, filter_data, target_id, for_delete=False):
     :return:
     :rtype:
     """
-    query = session.query(models.PluginOutput).filter_by(target_id=target_id)
+    query = PluginOutput.query.filter_by(target_id=target_id)
     if filter_data.get("target_id", None):
         query.filter_by(target_id=filter_data["target_id"])
     if filter_data.get("plugin_key", None):
         if isinstance(filter_data.get("plugin_key"), str):
             query = query.filter_by(plugin_key=filter_data["plugin_key"])
         if isinstance(filter_data.get("plugin_key"), list):
-            query = query.filter(models.PluginOutput.plugin_key.in_(filter_data["plugin_key"]))
+            query = query.filter(PluginOutput.plugin_key.in_(filter_data["plugin_key"]))
     if filter_data.get("plugin_type", None):
         if isinstance(filter_data.get("plugin_type"), str):
             query = query.filter_by(plugin_type=filter_data["plugin_type"])
         if isinstance(filter_data.get("plugin_type"), list):
-            query = query.filter(models.PluginOutput.plugin_type.in_(filter_data["plugin_type"]))
+            query = query.filter(PluginOutput.plugin_type.in_(filter_data["plugin_type"]))
     if filter_data.get("plugin_group", None):
         if isinstance(filter_data.get("plugin_group"), str):
             query = query.filter_by(plugin_group=filter_data["plugin_group"])
         if isinstance(filter_data.get("plugin_group"), list):
-            query = query.filter(models.PluginOutput.plugin_group.in_(filter_data["plugin_group"]))
+            query = query.filter(PluginOutput.plugin_group.in_(filter_data["plugin_group"]))
     if filter_data.get("plugin_code", None):
         if isinstance(filter_data.get("plugin_code"), str):
             query = query.filter_by(plugin_code=filter_data["plugin_code"])
         if isinstance(filter_data.get("plugin_code"), list):
-            query = query.filter(models.PluginOutput.plugin_code.in_(filter_data["plugin_code"]))
+            query = query.filter(PluginOutput.plugin_code.in_(filter_data["plugin_code"]))
     if filter_data.get("status", None):
         if isinstance(filter_data.get("status"), str):
             query = query.filter_by(status=filter_data["status"])
         if isinstance(filter_data.get("status"), list):
-            query = query.filter(models.PluginOutput.status.in_(filter_data["status"]))
+            query = query.filter(PluginOutput.status.in_(filter_data["status"]))
     try:
         if filter_data.get("user_rank", None):
             if isinstance(filter_data.get("user_rank"), str):
                 query = query.filter_by(user_rank=int(filter_data["user_rank"]))
             if isinstance(filter_data.get("user_rank"), list):
                 numbers_list = [int(x) for x in filter_data["user_rank"]]
-                query = query.filter(models.PluginOutput.user_rank.in_(numbers_list))
+                query = query.filter(PluginOutput.user_rank.in_(numbers_list))
         if filter_data.get("owtf_rank", None):
             if isinstance(filter_data.get("owtf_rank"), str):
                 query = query.filter_by(owtf_rank=int(filter_data["owtf_rank"]))
             if isinstance(filter_data.get("owtf_rank"), list):
                 numbers_list = [int(x) for x in filter_data["owtf_rank"]]
-                query = query.filter(models.PluginOutput.owtf_rank.in_(numbers_list))
+                query = query.filter(PluginOutput.owtf_rank.in_(numbers_list))
     except ValueError:
         raise InvalidParameterType("Integer has to be provided for integer fields")
     if not for_delete:
-        query = query.order_by(models.PluginOutput.plugin_key.asc())
+        query = query.order_by(PluginOutput.plugin_key.asc())
     try:
         if filter_data.get("offset", None):
             if isinstance(filter_data.get("offset"), list):
@@ -182,7 +183,7 @@ def poutput_gen_query(session, filter_data, target_id, for_delete=False):
 
 
 @target_required
-def get_all_poutputs(session, filter_data=None, target_id=None, inc_output=False):
+def get_all_poutputs(filter_data=None, target_id=None, inc_output=False):
     """Get all data based on criteria
 
     :param filter_data: Filter data
@@ -196,14 +197,14 @@ def get_all_poutputs(session, filter_data=None, target_id=None, inc_output=False
     """
     if not filter_data:
         filter_data = {}
-    target_manager.set_target(target_id)
-    query = poutput_gen_query(session, filter_data, target_id)
+    g.target_manager.set_target(target_id)
+    query = poutput_gen_query(filter_data, target_id)
     results = query.all()
     return get_plugin_output_dicts(results, target_id=target_id, inc_output=inc_output)
 
 
 @target_required
-def get_unique_dicts(session, target_id=None):
+def get_unique_dicts(target_id=None):
     """Returns a dict of some column names and their unique database, useful for advanced filter
 
     :param target_id: target ID
@@ -212,22 +213,22 @@ def get_unique_dicts(session, target_id=None):
     :rtype: `dict`
     """
     unique_data = {
-        "plugin_type": [i[0] for i in session.query(models.PluginOutput.plugin_type).filter_by(
+        "plugin_type": [i[0] for i in db.session.query(PluginOutput.plugin_type).filter_by(
             target_id=target_id).distinct().all()],
-        "plugin_group": [i[0] for i in session.query(models.PluginOutput.plugin_group).filter_by(
+        "plugin_group": [i[0] for i in db.session.query(PluginOutput.plugin_group).filter_by(
             target_id=target_id).distinct().all()],
-        "status": [i[0] for i in session.query(models.PluginOutput.status).filter_by(
+        "status": [i[0] for i in db.session.query(PluginOutput.status).filter_by(
             target_id=target_id).distinct().all()],
-        "user_rank": [i[0] for i in session.query(models.PluginOutput.user_rank).filter_by(
+        "user_rank": [i[0] for i in db.session.query(PluginOutput.user_rank).filter_by(
             target_id=target_id).distinct().all()],
-        "owtf_rank": [i[0] for i in session.query(models.PluginOutput.owtf_rank).filter_by(
+        "owtf_rank": [i[0] for i in db.session.query(PluginOutput.owtf_rank).filter_by(
             target_id=target_id).distinct().all()],
     }
     return unique_data
 
 
 @target_required
-def delete_all_poutput(session, filter_data, target_id=None):
+def delete_all_poutput(filter_data, target_id=None):
     """Delete all plugin output
 
     .note::
@@ -241,7 +242,7 @@ def delete_all_poutput(session, filter_data, target_id=None):
     :rtype: None
     """
     # for_delete = True: empty dict will match all results
-    query = poutput_gen_query(session, filter_data, target_id, for_delete=True)
+    query = poutput_gen_query(filter_data, target_id, for_delete=True)
     # Delete the folders created for these plugins
     for plugin in query.all():
         # First check if path exists in db
@@ -251,11 +252,11 @@ def delete_all_poutput(session, filter_data, target_id=None):
                 FileOperations.rm_tree(output_path)
     # When folders are removed delete the results from db
     query.delete()
-    session.commit()
+    db.session.commit()
 
 
 @target_required
-def update_poutput(session, plugin_group, plugin_type, plugin_code, patch_data, target_id=None):
+def update_poutput(plugin_group, plugin_type, plugin_code, patch_data, target_id=None):
     """Update output in DB
 
     :param plugin_group: Plugin group
@@ -272,7 +273,7 @@ def update_poutput(session, plugin_group, plugin_type, plugin_code, patch_data, 
     :rtype: None
     """
     plugin_dict = {"plugin_group": plugin_group, "plugin_type": plugin_type, "plugin_code": plugin_code}
-    query = poutput_gen_query(session, plugin_dict, target_id)
+    query = poutput_gen_query(plugin_dict, target_id)
     obj = query.first()
     if obj:
         try:
@@ -285,13 +286,13 @@ def update_poutput(session, plugin_group, plugin_type, plugin_code, patch_data, 
                 if isinstance(patch_data["user_notes"], list):
                     patch_data["user_notes"] = patch_data["user_notes"][0]
                 obj.user_notes = patch_data["user_notes"]
-            session.merge(obj)
-            session.commit()
+            db.session.merge(obj)
+            db.session.commit()
         except ValueError:
             raise InvalidParameterType("Integer has to be provided for integer fields")
 
 
-def plugin_already_run(session, plugin_info, target_id=None):
+def plugin_already_run(plugin_info, target_id=None):
     """Check if plugin already ran
 
     :param plugin_info: Plugin info
@@ -301,7 +302,7 @@ def plugin_already_run(session, plugin_info, target_id=None):
     :return: True if already ran
     :rtype: `bool`
     """
-    plugin_output_count = session.query(models.PluginOutput).filter_by(
+    plugin_output_count = PluginOutput.query.filter_by(
         target_id=target_id,
         plugin_code=plugin_info["code"],
         plugin_type=plugin_info["type"],
@@ -310,7 +311,7 @@ def plugin_already_run(session, plugin_info, target_id=None):
 
 
 @target_required
-def save_plugin_output(session, plugin, output, target_id=None):
+def save_plugin_output(plugin, output, target_id=None):
     """Save into the database the command output of the plugin.
 
     :param plugin: Plugin dict
@@ -324,7 +325,7 @@ def save_plugin_output(session, plugin, output, target_id=None):
     """
     from owtf.plugin.plugin_handler import plugin_handler
 
-    session.merge(models.PluginOutput(
+    db.session.merge(PluginOutput(
         plugin_key=plugin["key"],
         plugin_code=plugin["code"],
         plugin_group=plugin["group"],
@@ -338,11 +339,11 @@ def save_plugin_output(session, plugin, output, target_id=None):
         output_path=(plugin["output_path"] if os.path.exists(plugin_handler.get_plugin_output_dir(plugin)) else None),
         owtf_rank=plugin['owtf_rank'])
     )
-    session.commit()
+    db.session.commit()
 
 
 @target_required
-def save_partial_output(session, plugin, output, message, target_id=None):
+def save_partial_output(plugin, output, message, target_id=None):
     """Save partial plugin output
 
     :param plugin: Plugin dict
@@ -358,7 +359,7 @@ def save_partial_output(session, plugin, output, message, target_id=None):
     """
     from owtf.plugin.plugin_handler import plugin_handler
 
-    session.merge(models.PluginOutput(
+    db.session.merge(PluginOutput(
         plugin_key=plugin["key"],
         plugin_code=plugin["code"],
         plugin_group=plugin["group"],
@@ -373,10 +374,10 @@ def save_partial_output(session, plugin, output, message, target_id=None):
         output_path=(plugin["output_path"] if os.path.exists(plugin_handler.get_plugin_output_dir(plugin)) else None),
         owtf_rank=plugin['owtf_rank'])
     )
-    session.commit()
+    db.session.commit()
 
 @session_required
-def get_severity_freq(session, session_id=None):
+def get_severity_freq(session_id=None):
     """Get severity frequencies for the analytics
 
     :param session_id: session ID
@@ -394,11 +395,11 @@ def get_severity_freq(session, session_id=None):
     ]
 
     targets = []
-    target_objs = session.query(models.Target.id).filter(models.Target.sessions.any(id=session_id)).all()
+    target_objs = db.session.query(Target.id).filter(Target.sessions.any(id=session_id)).all()
     for target_obj in target_objs:
         targets.append(target_obj.id)
 
-    plugin_objs = session.query(models.PluginOutput).all()
+    plugin_objs = PluginOutput.query.all()
 
     for plugin_obj in plugin_objs:
         if plugin_obj.target_id in targets:
