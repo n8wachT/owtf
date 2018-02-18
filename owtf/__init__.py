@@ -4,12 +4,6 @@ owtf
 """
 import os
 import subprocess
-import logging
-
-from flask_alembic import Alembic
-from flask_sqlalchemy import SQLAlchemy
-from raven.contrib.flask import Sentry
-from celery import Celery
 
 from owtf.utils.file import FileOperations, get_logs_dir
 
@@ -62,6 +56,7 @@ print("""\033[92m
     Version: {0}
     Revision: {1}
 \033[0m""".format(VERSION, __build__))
+
 
 FileOperations.create_missing_dirs(get_logs_dir())
 

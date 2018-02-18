@@ -653,3 +653,7 @@ def derive_config_from_url(target_url):
         target_config['top_domain'] = ''
         target_config['top_url'] = ''
     return target_config
+
+
+# Define the service
+target_manager = TargetManager()

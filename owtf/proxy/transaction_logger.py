@@ -17,7 +17,7 @@ from owtf.proxy.cache_handler import response_from_cache, request_from_cache
 from owtf.lib.owtf_process import OWTFProcess
 from owtf.utils.timer import Timer
 from owtf.http.transaction import HTTPTransaction
-from owtf.managers.target import get_all_in_scope, get_indexed_targets
+from owtf.managers.target import get_all_in_scope, get_indexed_targets, target_manager
 from owtf.managers.transaction import log_transactions_from_logger
 from owtf.constants import INBOUND_PROXY_CACHE_DIR
 
@@ -57,7 +57,7 @@ class TransactionLogger(OWTFProcess):
             # This check must be at the last
             elif urlparse(request.url).hostname == urlparse(target).hostname:
                 return [target_id, True]
-        return [g.target_manager.get_target_id(), self.get_scope_for_url(request.url, host_list)]
+        return [target_manager.get_target_id(), self.get_scope_for_url(request.url, host_list)]
 
     def get_scope_for_url(self, url, host_list):
         """Check the scope for the url in the transaction

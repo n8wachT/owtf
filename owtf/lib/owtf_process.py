@@ -34,7 +34,6 @@ class OWTFProcess(Process):
         self._process = None
         self.output_q = None
         self.logger = logger
-        signal.signal(signal.SIGINT, signal_handler)
         self.logger.setup_logging()
         for key in list(kwargs.keys()):  # Attach all kwargs to self
             setattr(self, key, kwargs.get(key, None))

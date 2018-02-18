@@ -427,3 +427,6 @@ class WorkerManager(object):
         # You only send SIGINT to worker since it will handle it more
         # gracefully and kick the command process's ***
         self._signal_process(worker_dict["worker"].pid, signal.SIGINT)
+
+
+worker_manager = WorkerManager(keep_working=True)

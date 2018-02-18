@@ -386,3 +386,6 @@ class PluginHelper(object):
         plugin_output["type"] = "TopTransactionsBySpeed"
         plugin_output["output"] = {"Order": Order}
         return ([plugin_output])
+
+
+plugin_helper = PluginHelper()

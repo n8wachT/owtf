@@ -1,14 +1,6 @@
-from owtf.lib.exceptions import APIError
+from .controller import Controller
+from . import resources as r
 
-
-HTTP_METHODS = ["GET", "PUT", "POST", "PATCH", "DELETE", "HEAD", "OPTIONS"]
-
-
-def api_assert(condition, *args, **kwargs):
-    """Assertion to fail with if not ``condition``
-    Asserts that ``condition`` is ``True``, else raises an ``APIError``
-    with the provided ``args`` and ``kwargs``
-    :type  condition: bool
-    """
-    if not condition:
-        raise APIError(*args, **kwargs)
+app = Controller('api', __name__)
+app.add_resource('/', r.IndexResource)
+app.add_resource('/auth', r.AuthIndexResource)

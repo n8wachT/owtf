@@ -575,3 +575,6 @@ def show_plugin_types(plugin_type, group):
         pad1 = "_" * (60 - len(line_start))
         pad2 = "_" * (20 - len(plugin['code']))
         logging.info("%s%s(%s)%s%s", line_start, pad1, plugin['code'], pad2, plugin['descrip'])
+
+
+plugin_handler = PluginHandler()

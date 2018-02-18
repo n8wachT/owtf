@@ -334,3 +334,6 @@ class PluginParams(object):
             return self.no_args  # Error processing arguments, must abort processing
         all_args = merge_dicts(mandatory, optional)
         return self.set_args(all_args, plugin)
+
+
+plugin_params = PluginParams()

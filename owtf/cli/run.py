@@ -3,7 +3,7 @@ import logging
 import sys
 
 import click
-from flask import g
+from flask import current_app
 
 from owtf.cli.base import cli
 from owtf.config import create_app
@@ -14,10 +14,10 @@ from owtf.managers.plugin import load_test_groups, load_plugins
 from owtf.managers.resource import load_resources_from_file
 from owtf.managers.session import _ensure_default_session
 from owtf.managers.target import load_targets, TargetManager
-from owtf.managers.worker import WorkerManager
-from owtf.managers.worklist import load_works
-from owtf.plugin.plugin_handler import PluginHandler
-from owtf.plugin.plugin_params import PluginParams
+from owtf.work.worker import WorkerManager
+from owtf.work.worklist import load_works
+from owtf.managers.plugin_handler import PluginHandler
+from owtf.managers.plugin_params import PluginParams
 from owtf.proxy.main import start_proxy
 from owtf.utils.file import create_temp_storage_dirs, clean_temp_storage_dirs
 from owtf.constants import WEB_TEST_GROUPS, AUX_TEST_GROUPS, NET_TEST_GROUPS, DEFAULT_RESOURCES_PROFILE, \
@@ -27,28 +27,23 @@ from owtf.constants import WEB_TEST_GROUPS, AUX_TEST_GROUPS, NET_TEST_GROUPS, DE
 
 
 def process_args():
-    pass
-
+    args = ''
+    if plugin_group == 'auxiliary':
+        # For auxiliary plugins, the scope are the parameters.
+        args = scope
+        # auxiliary plugins do not have targets, they have metasploit-like parameters.
+        scope = ['auxiliary']
 
 def initialise_framework(options):
     pass
 
 @cli.command(help='The main OWTF CLI interface')
-@click.option("-i", "--interactive", default="yes",
-            help="Interactive: yes (default, more control) / no (script-friendly)")
-# @click.option("-e", "--except", default=None, help="Comma separated list of plugins to be ignored in the test")
-# @click.option("-o", "--only", default=None, help="Comma separated list of the only plugins to be used in the test")
-# @click.option("-p", "--inbound_proxy", default=None, help="(ip:)port - Setup an inbound proxy for manual site analysis")
-# @click.option("-x", "--outbound_proxy", default=None,
-#             help="type://ip:port - Send all OWTF requests using the proxy "
-#              "for the given ip and port. The 'type' can be 'http'(default) "
-#              "or 'socks'")
-# @click.option("-T", "--tor", default=None, help="ip:port:tor_control_port:password:IP_renew_time - "
-#             "Sends all OWTF requests through the TOR network. For configuration help run -T help.")
-# @click.option("-proxy", "--proxy", default=True, help="Use this flag to run OWTF Inbound Proxy")
+@click.option("-proxy", "--proxy", default=True, help="Use this flag to run OWTF Inbound Proxy")
 @click.argument("targets", nargs=-1)
 def cli(targets):
     app = create_app()
+    if proxy:
+
     scope = targets or []
     num_targets = len(scope)
     if num_targets == 1:  # Check if this is a file
@@ -83,12 +78,6 @@ def cli(targets):
         load_plugins()
     except exceptions.DatabaseNotRunningException:
         sys.exit(-1)
-
-    g.plugin_handler = PluginHandler()
-    g.plugin_params = PluginParams()
-    g.worker_manager = WorkerManager()
-    g.target_manager = TargetManager()
-    #g.config_handler = ConfigHandler()
 
     options = {
         'PluginGroup': None,
