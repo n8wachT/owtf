@@ -10,6 +10,10 @@ import os
 import signal
 import sys
 import traceback
+
+from owtf.managers.plugin_handler import plugin_handler
+
+
 try:
     import queue
 except ImportError:
@@ -17,9 +21,9 @@ except ImportError:
 from time import strftime
 
 import psutil
-from flask import current_app, g
+from flask import current_app
 
-from owtf.managers.worklist import get_work_for_target
+from owtf.work.worklist import get_work_for_target
 from owtf.constants import PROCESS_PER_CORE, MIN_RAM_NEEDED
 from owtf.lib.owtf_process import OWTFProcess
 from owtf.lib.exceptions import InvalidWorkerReference
@@ -48,9 +52,9 @@ class Worker(OWTFProcess):
                     print("No work")
                     sys.exit(0)
                 target, plugin = work
-                plugin_dir = g.plugin_handler.get_plugin_group_dir(plugin['group'])
-                g.plugin_handler.switch_to_target(target["id"])
-                g.plugin_handler.process_plugin(plugin_dir=plugin_dir, plugin=plugin)
+                plugin_dir = plugin_handler.get_plugin_group_dir(plugin['group'])
+                plugin_handler.switch_to_target(target["id"])
+                plugin_handler.process_plugin(plugin_dir=plugin_dir, plugin=plugin)
                 self.output_q.put('done')
             except queue.Empty:
                 pass

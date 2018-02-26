@@ -3,21 +3,18 @@ import logging
 import sys
 
 import click
-from flask import current_app
 
 from owtf.cli.base import cli
 from owtf.config import create_app
+from owtf.file_server.main import start_file_server
 from owtf.lib import exceptions
 from owtf.managers.config import load_framework_config_file, load_config_db_file
 from owtf.managers.mapping import load_mappings_from_file
 from owtf.managers.plugin import load_test_groups, load_plugins
 from owtf.managers.resource import load_resources_from_file
 from owtf.managers.session import _ensure_default_session
-from owtf.managers.target import load_targets, TargetManager
-from owtf.work.worker import WorkerManager
+from owtf.managers.target import load_targets
 from owtf.work.worklist import load_works
-from owtf.managers.plugin_handler import PluginHandler
-from owtf.managers.plugin_params import PluginParams
 from owtf.proxy.main import start_proxy
 from owtf.utils.file import create_temp_storage_dirs, clean_temp_storage_dirs
 from owtf.constants import WEB_TEST_GROUPS, AUX_TEST_GROUPS, NET_TEST_GROUPS, DEFAULT_RESOURCES_PROFILE, \
@@ -34,16 +31,8 @@ def process_args():
         # auxiliary plugins do not have targets, they have metasploit-like parameters.
         scope = ['auxiliary']
 
-def initialise_framework(options):
-    pass
 
-@cli.command(help='The main OWTF CLI interface')
-@click.option("-proxy", "--proxy", default=True, help="Use this flag to run OWTF Inbound Proxy")
-@click.argument("targets", nargs=-1)
-def cli(targets):
-    app = create_app()
-    if proxy:
-
+def get_targets(targets=None):
     scope = targets or []
     num_targets = len(scope)
     if num_targets == 1:  # Check if this is a file
@@ -61,7 +50,17 @@ def cli(targets):
     for target in scope:
         if target[0] == "-":
             logging.info("Invalid Target: " + target)
+    return scope
 
+
+@cli.command()
+@click.argument("targets", nargs=-1)
+def cli(targets):
+    host = '127.0.0.1'
+    port = 8009
+    addr = '{0}:{1}'.format(host, port)
+    app = create_app(SERVER_NAME=addr, DEBUG=True)
+    scope = get_targets(targets)
     owtf_pid = os.getpid()
     create_temp_storage_dirs(owtf_pid)
 
@@ -88,7 +87,11 @@ def cli(targets):
         target_urls = load_targets(scope)
         load_works(target_urls, options)
         start_proxy()
-        return True
+        start_file_server()
+        os.environ.setdefault('FLASK_DEBUG', '1')
+
+        app.run(host, port)
+
     except:
         sys.exit(0)  # Not Interrupted or Crashed.
     finally:  # Needed to rename the temp storage dirs to avoid confusion.

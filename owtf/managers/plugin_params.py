@@ -18,9 +18,7 @@ class PluginParams(object):
 
     def __init__(self):
         self.init = False
-        self.no_args = []
-        self.logger = logger
-        self.logger.setup_logging()
+        self.raw_args = []
 
     def process_args(self):
         """Process args

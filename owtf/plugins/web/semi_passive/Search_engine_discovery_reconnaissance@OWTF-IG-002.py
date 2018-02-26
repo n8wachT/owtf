@@ -2,7 +2,7 @@
 SEMI-PASSIVE Plugin for Search engine discovery/reconnaissance (OWASP-IG-002)
 """
 from owtf.managers.resource import get_resources
-from owtf.plugin.plugin_helper import plugin_helper
+from owtf.managers.plugin_helper import plugin_helper
 
 
 DESCRIPTION = "Metadata analysis"

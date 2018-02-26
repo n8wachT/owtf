@@ -8,10 +8,6 @@ automatically log HTTP transactions by calling the DB module.
 
 import logging
 import sys
-
-from owtf import get_scoped_session
-
-
 try:
     import http.client as client
 except ImportError:
@@ -31,7 +27,7 @@ from owtf.managers.error import add_error
 from owtf.managers.target import is_url_in_scope
 from owtf.managers.transaction import is_transaction_already_added, get_first
 from owtf.managers.url import is_url
-from owtf.plugin.plugin_handler import plugin_handler
+from owtf.managers.plugin_handler import plugin_handler
 from owtf.constants import USER_AGENT, PROXY_CHECK_URL, INBOUND_PROXY_IP, INBOUND_PROXY_PORT
 from owtf.utils.error import abort_framework
 from owtf.utils.http import derive_http_method
@@ -103,7 +99,6 @@ class Requester(object):
         self.req_count_total = 0
         self.log_transactions = False
         self.timer = timer
-        self.session = get_scoped_session()
         self.proxy = proxy
         if proxy is None:
             logging.debug(
@@ -139,7 +134,7 @@ class Requester(object):
         :return: True/False
         :rtype: `bool`
         """
-        return is_transaction_already_added(self.session, {'url': url.strip()})
+        return is_transaction_already_added({'url': url.strip()})
 
     def is_request_possible(self):
         """Check if requests are possible
@@ -453,7 +448,7 @@ class Requester(object):
         if data is not None:
             criteria['data'] = self.get_post_to_str(data)
         # Visit URL if not already visited.
-        if (not use_cache or not is_transaction_already_added(self.session, criteria)):
+        if (not use_cache or not is_transaction_already_added(criteria)):
             if method in ['', 'GET', 'POST', 'HEAD', 'TRACE', 'OPTIONS']:
                 return self.request(url, method, data)
             elif method == 'DEBUG':

@@ -8,7 +8,7 @@ import tornado.options
 
 from owtf.constants import TEMPLATES, FILE_SERVER_PORT, FILE_SERVER_LOG
 from owtf.file_server.routes import HANDLERS
-from owtf.managers.worker import worker_manager
+from owtf.work.worker import worker_manager
 from owtf.utils.logger import logger
 
 

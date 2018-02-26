@@ -14,7 +14,7 @@ from oauth2client.client import OAuth2WebServerFlow
 from owtf import VERSION
 from owtf.config import db
 from owtf.db.utils import get_or_create
-from owtf.models.user import User
+from owtf.models import User
 
 GOOGLE_AUTH_URI = 'https://accounts.google.com/o/oauth2/auth'
 GOOGLE_REVOKE_URI = 'https://accounts.google.com/o/oauth2/revoke'

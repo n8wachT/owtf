@@ -1,5 +1,5 @@
 from owtf.config import config_handler
-from owtf.plugin.plugin_params import plugin_params
+from owtf.managers.plugin_params import plugin_params
 from owtf.protocols.smb import SMB
 
 

@@ -5,12 +5,13 @@ owtf.db.config_manager
 """
 import logging
 import os
+
 try:
     import configparser as parser
 except ImportError:
     import ConfigParser as parser
 
-from owtf.config import db
+from owtf.config import db, config_handler
 from owtf.utils.strings import multi_replace, str2bool
 from owtf.lib.exceptions import InvalidConfigurationReference
 from owtf.models import ConfigSetting

@@ -15,12 +15,11 @@ import re
 
 from tornado.template import Template
 
-from owtf.api.reporter import reporter
 from owtf.http.requester import requester
 from owtf.lib.exceptions import FrameworkAbortException, PluginAbortException
 from owtf.managers.target import target_manager
 from owtf.managers.url import import_urls, get_urls_to_visit, add_url
-from owtf.plugin.plugin_handler import plugin_handler
+from owtf.managers.plugin_handler import plugin_handler
 from owtf.shell.blocking_shell import shell
 from owtf.utils.file import FileOperations
 from owtf.utils.logger import logger
@@ -37,7 +36,7 @@ class PluginHelper(object):
 
     def __init__(self):
         self.plugin_handler = plugin_handler
-        self.reporter = reporter
+        #self.reporter = reporter
         self.requester = requester
         self.shell = shell
         self.timer = timer

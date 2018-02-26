@@ -5,7 +5,8 @@ owtf.lib.exceptions
 Declares the framework exceptions and HTTP errors
 """
 
-import tornado.web
+import json
+from collections import OrderedDict
 
 
 class FrameworkException(Exception):
@@ -14,14 +15,6 @@ class FrameworkException(Exception):
 
     def __str__(self):
         return repr(self.parameter)
-
-
-class APIError(tornado.web.HTTPError):
-    """Exception for API-based errors"""
-
-    def __init__(self, message, code=400):
-        super(APIError, self).__init__(code)
-        self.message = message
 
 
 class FrameworkAbortException(FrameworkException):
@@ -106,3 +99,35 @@ class PluginsDirectoryDoesNotExist(PluginException):
 
 class PluginsAlreadyLoaded(PluginException):
     """`load_plugins()` called twice."""
+
+
+class AuthenticationFailed(Exception):
+    pass
+
+
+class ApiError(Exception):
+    code = None
+    json = None
+
+    def __init__(self, text=None, code=None):
+        if code is not None:
+            self.code = code
+        self.text = text
+        if text:
+            try:
+                self.json = json.loads(text, object_pairs_hook=OrderedDict)
+            except ValueError:
+                self.json = None
+        else:
+            self.json = None
+        super(ApiError, self).__init__((text or '')[:128])
+
+    @classmethod
+    def from_response(cls, response):
+        if response.status_code == 401:
+            return ApiUnauthorized(response.text)
+        return cls(response.text, response.status_code)
+
+
+class ApiUnauthorized(ApiError):
+    code = 401

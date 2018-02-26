@@ -9,7 +9,7 @@ import datetime
 from sqlalchemy.ext.hybrid import hybrid_property
 
 from owtf.config import db
-from owtf.db.utils import model_repr
+from owtf.db.utils import model_repr, StandardAttributes, ApiTokenMixin
 
 
 # This table actually allows us to make a many to many relationship
@@ -305,3 +305,13 @@ class Mapping(db.Model):
     owtf_code = db.Column(db.String, primary_key=True)
     mappings = db.Column(db.String)
     category = db.Column(db.String, nullable=True)
+
+
+class User(StandardAttributes, db.Model):
+    """
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(128), unique=True, nullable=False)
+
+    __tablename__ = 'user'
+    __repr__ = model_repr('email')

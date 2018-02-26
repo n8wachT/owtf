@@ -4,9 +4,15 @@ owtf.db.db
 
 This file handles all the database transactions.
 """
-from owtf.config import db
+import binascii
+import os
 
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.declarative import declared_attr
+from sqlalchemy.sql import func
+
+from owtf.config import db
+from owtf.utils import timezone
 
 
 def try_create(model, where, defaults=None):
@@ -117,3 +123,32 @@ def model_repr(*attrs):
         return u'<%s at 0x%x: %s>' % (cls, id(self), ', '.join(pairs))
 
     return _repr
+
+
+class StandardAttributes(object):
+    @declared_attr
+    def date_created(cls):
+        return db.Column(
+            db.TIMESTAMP(timezone=True),
+            default=timezone.now,
+            server_default=func.now(),
+            nullable=False
+        )
+
+
+class ApiTokenMixin(object):
+    @declared_attr
+    def key(cls):
+        return db.Column(
+            db.String(64), default=lambda: ApiTokenMixin.generate_token(), unique=True, nullable=False
+        )
+
+    @classmethod
+    def generate_token(cls):
+        return binascii.hexlify(os.urandom(32))
+
+    def get_token_key(self):
+        raise NotImplementedError
+
+    def get_tenant(self):
+        raise NotImplementedError

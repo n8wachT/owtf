@@ -21,7 +21,7 @@ from owtf.managers.config import get_tcp_ports
 from owtf.managers.plugin import get_plugins_by_group, get_types_for_plugin_group, get_plugins_by_group_type
 from owtf.managers.poutput import save_plugin_output, save_partial_output
 from owtf.managers.transaction import num_transactions
-from owtf.plugin.scanner import Scanner
+from owtf.managers.scanner import Scanner
 from owtf.constants import AUX_OUTPUT_PATH, FORCE_OVERWRITE, PLUGINS_DIR
 from owtf.utils.error import abort_framework, user_abort
 from owtf.utils.file import FileOperations, get_output_dir_target
