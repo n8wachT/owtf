@@ -7,9 +7,8 @@
   <!-- Styles -->
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u"
   crossorigin="anonymous">
-  <link href="{{ static_url('css/app.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
   <!-- End Styles -->
-
 </head>
 <body>
   <noscript>
@@ -20,15 +19,19 @@
   </div>
   <script>
     setTimeout(function () {
-      const loadingBlock = document.getElementById("application_loading")
+      const loadingBlock = document.getElementById("application_loading");
       if (loadingBlock) {
         loadingBlock.innerHTML = '<div style="height: 100vh; display: flex; align-items: center; justify-content: center; font-family: Helvetica-Neue, Helevetica, sans-serif; font-size: 24px; font-weight: 700;">Loading application...</div>'
       }
     }, 500)
   </script>
+  <script src="https://cdn.ravenjs.com/3.22.3/raven.min.js" crossorigin="anonymous"></script>
+  <script>
+      Raven.config('https://ef160abcd8ba42a982d4a684bc6f44e5@sentry.io/294914').install();
+  </script>
   <!-- Bundle File generated using webpack -->
-  <script type="text/javascript" src="{{ static_url('js/vendor.js') }}"></script>
-  <script type="text/javascript" src="{{ static_url('js/app.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/vendor.js') }}"></script>
+  <script type="text/javascript" src="{{ url_for('static', filename='js/app.js') }}"></script>
   <!-- End container -->
 </body>
 </html>

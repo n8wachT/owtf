@@ -16,23 +16,21 @@ import yaml
 from flask import Flask
 from flask_alembic import Alembic
 from flask_sqlalchemy import SQLAlchemy
+from flask_restful import Api
 from raven.contrib.flask import Sentry
 # Remove warnings
 from sqlalchemy.exc import SAWarning
 warnings.simplefilter('always', SAWarning)
 logging.captureWarnings(True)
 
-from owtf.constants import ROOT_DIR, REPLACEMENT_DELIMITER, CONFIG_TYPES
+from owtf.constants import ROOT_DIR, REPLACEMENT_DELIMITER, CONFIG_TYPES, STATIC_ROOT, OWTF_CONF, TEMPLATES
 from owtf.lib.exceptions import PluginAbortException
-from owtf import get_revision
-from owtf.constants import PROJECT_ROOT, OWTF_CONF, ROOT_DIR
-from owtf.api import APIController, APICatchall
 
 
 alembic = Alembic()
 db = SQLAlchemy()
-sentry = Sentry(logging=True, level=logging.WARN)
-api = APIController(prefix='/api/0')
+api = Api(prefix="/api/")
+sentry = Sentry(logging=True, level=logging.ERROR, wrap_wsgi=True)
 
 
 def get_db_config():
@@ -51,8 +49,11 @@ def get_db_config():
             DATABASE_IP = conf['database_ip']
             DATABASE_PORT = int(conf['database_port'])
 
-    uri = "postgresql+psycopg2://{}:{}@{}:{}/{}".format(DATABASE_USER, DATABASE_PASS, DATABASE_IP, str(DATABASE_PORT),
-                                                    DATABASE_NAME)
+    uri = "postgresql+psycopg2://{}:{}@{}:{}/{}".format(DATABASE_USER,
+                                                        DATABASE_PASS,
+                                                        DATABASE_IP,
+                                                        str(DATABASE_PORT),
+                                                        DATABASE_NAME)
     return uri
 
 
@@ -68,8 +69,8 @@ def with_health_check(app):
 def create_app(_read_config=True, **config):
     app = Flask(
         __name__,
-        static_folder=os.path.join(ROOT_DIR, 'webapp', 'build'),
-        template_folder=os.path.join(ROOT_DIR, 'templates')
+        static_folder=STATIC_ROOT,
+        template_folder=TEMPLATES
     )
     app.config['SQLALCHEMY_DATABASE_URI'] = get_db_config()
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -88,26 +89,26 @@ def create_app(_read_config=True, **config):
     if app.config.get('LOG_LEVEL'):
         app.logger.setLevel(getattr(logging, app.config['LOG_LEVEL'].upper()))
 
+
+    app.config['SENTRY_DSN'] = os.environ.get('SENTRY_DSN') or None
+    app.config['SENTRY_DSN_FRONTEND'] = os.environ.get(
+        'SENTRY_DSN_FRONTEND') or None
+    app.config['SENTRY_INCLUDE_PATHS'] = [
+        'owtf',
+    ]
+    app.config['SENTRY_ENVIRONMENT'] = os.environ.get(
+        'NODE_ENV', 'development')
+
     # init sentry first
     sentry.init_app(app)
     # https://github.com/getsentry/raven-python/issues/1030
     from raven.handlers.logging import SentryHandler
     app.logger.addHandler(SentryHandler(client=sentry.client, level=logging.WARN))
 
-    @app.before_request
-    def capture_user(*args, **kwargs):
-        from owtf.api.auth import get_current_user
-        user = get_current_user()
-        if user is not None:
-            sentry.client.user_context({
-                'id': user.id,
-                'email': user.email,
-            })
-
     api.init_app(app)
     configure_db(app)
-    configure_api()
-    #configure_web(app)
+    configure_api(app)
+    configure_web(app)
 
     from . import models
     return app
@@ -133,7 +134,7 @@ def configure_db(app):
     event.listen(mapper, 'init', instant_defaults_listener)
 
 
-def configure_api():
+def configure_api(app):
     from owtf.api.config import Configuration
     from owtf.api.plugin import PluginData, PluginOutput, PluginNameOutput
     from owtf.api.report import ReportExport
@@ -141,6 +142,7 @@ def configure_api():
     from owtf.api.targets import TargetConfig, TargetConfigSearch
     from owtf.api.transactions import TransactionData, TransactionHrt, TransactionSearch
     from owtf.api.work import Worker, Worklist, WorklistSearch
+    from owtf.api import APICatchall
 
     api.add_resource(Configuration, '/configuration/')
     api.add_resource(PluginNameOutput, '/targets/<target_id>/poutput/names/')
@@ -160,40 +162,8 @@ def configure_api():
 
 
 def configure_web(app):
-    from owtf.web.auth import AuthorizedView, LoginView, LogoutView
-
-    # the path used by the webapp for static resources uses the current app
-    # version (which is a git hash) so that browsers don't use an old, cached
-    # versions of those resources
-
-    if app.debug:
-        static_root = os.path.join(PROJECT_ROOT, 'static')
-        revision = '0'
-    else:
-        static_root = os.path.join(PROJECT_ROOT, 'static-built')
-        revision_facts = get_revision or {}
-        revision = revision_facts.get('hash', '0')
-
-    app.add_url_rule('/auth/login/', view_func=LoginView.as_view('login', authorized_url='authorized'))
-    app.add_url_rule('/auth/logout/', view_func=LogoutView.as_view('logout', complete_url='index'))
-    app.add_url_rule('/auth/complete/', view_func=AuthorizedView.as_view('authorized', complete_url='index',
-                                                                         authorized_url='authorized'))
-
-    configure_default(app)
-    if app.debug:
-        from owtf.web import debug
-        app.register_blueprint(debug.app, url_prefix='/debug')
-
-
-def configure_default(app):
-    from owtf.web.index import IndexView
-
-    static_root = os.path.join(PROJECT_ROOT, 'webapp')
-    revision_facts = get_revision or {}
-    revision = revision_facts.get('hash', '0') if not app.debug else '0'
-
-    app.add_url_rule('/<path:path>', view_func=IndexView.as_view('index-path'))
-    app.add_url_rule('/', view_func=IndexView.as_view('index'))
+    from owtf import web
+    app.register_blueprint(web.app, url_prefix='')
 
 
 class Config(object):

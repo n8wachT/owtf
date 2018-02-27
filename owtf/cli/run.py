@@ -84,15 +84,14 @@ def cli(targets):
     }
     try:
         logging.info("Loading framework please wait..")
-        target_urls = load_targets(scope)
-        load_works(target_urls, options)
-        start_proxy()
-        start_file_server()
-        os.environ.setdefault('FLASK_DEBUG', '1')
-
-        app.run(host, port)
-
+        #target_urls = load_targets(scope)
+        #load_works(target_urls, options)
+        #start_proxy()
+        #start_file_server()
     except:
         sys.exit(0)  # Not Interrupted or Crashed.
     finally:  # Needed to rename the temp storage dirs to avoid confusion.
         clean_temp_storage_dirs(owtf_pid)
+
+    app.run(host, port)
+    print("Running on http://{}".format(addr))

@@ -76,6 +76,10 @@ class ParamError(APIError):
 
 
 class APIView(Resource):
+
+    def __init__(self, *args, **kwargs):
+        super(APIView, self).__init__(*args, **kwargs)
+
     def dispatch_request(self, *args, **kwargs):
         try:
             response = super(APIView, self).dispatch_request(*args, **kwargs)

@@ -52,9 +52,8 @@ print("""\033[92m
     |_____|_____| |_| |__|
 
         @owtfp
-    Visit: http://owtf.org
-    Version: {0}
-    Revision: {1}
+Version: {0}
+Revision: {1}
 \033[0m""".format(VERSION, __build__))
 
 
