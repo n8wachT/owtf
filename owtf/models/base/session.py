@@ -11,8 +11,8 @@ from sqlalchemy import create_engine, func
 from sqlalchemy.orm import Session as _Session
 from sqlalchemy.orm import sessionmaker
 
-from owtf.db.models import Base
-from owtf.settings import DATABASE_IP, DATABASE_NAME, DATABASE_PASS, DATABASE_PORT, DATABASE_USER
+from owtf.settings import DATABASE_IP, DATABASE_NAME, DATABASE_PASS, DATABASE_USER
+from owtf.utils.sql import ClassProperty
 
 
 def get_count(q):
@@ -22,6 +22,7 @@ def get_count(q):
 
 
 def flush_transaction(method):
+
     @functools.wraps(method)
     def wrapper(self, *args, **kwargs):
         dryrun = kwargs.pop("dryrun", False)
@@ -37,14 +38,16 @@ def flush_transaction(method):
                 self.session.rollback()
             raise
         return ret
+
     return wrapper
 
 
 def get_db_engine():
     engine = create_engine(
-            "postgresql+psycopg2://{}:{}@{}/{}".format(DATABASE_USER, DATABASE_PASS, DATABASE_IP, DATABASE_NAME),
-                pool_recycle=120)
-    Base.metadata.create_all(engine)
+        "postgresql+psycopg2://{}:{}@{}/{}".format(DATABASE_USER, DATABASE_PASS, DATABASE_IP, DATABASE_NAME),
+        pool_recycle=120)
+    from owtf.models.base.model_base import Model
+    Model.metadata.create_all(engine)
     return engine
 
 
@@ -63,5 +66,15 @@ class Session(_Session):
     _add = _Session.add
     _add_all = _Session.add_all
     _delete = _Session.delete
+
+    def add(self, *args, **kwargs):
+        raise NotImplementedError("Use add method on models instead.")
+
+    def add_all(self, *args, **kwargs):
+        raise NotImplementedError("Use add method on models instead.")
+
+    def delete(self, *args, **kwargs):
+        raise NotImplementedError("Use delete method on models instead.")
+
 
 Session = sessionmaker(class_=Session)

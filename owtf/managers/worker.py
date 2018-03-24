@@ -5,15 +5,10 @@ owtf.managers.worker
 """
 import logging
 import multiprocessing
-import os
 import signal
 import sys
 import traceback
 from time import strftime
-
-from owtf.utils.strings import str2bool
-
-
 try:
     import queue
 except ImportError:
@@ -21,7 +16,7 @@ except ImportError:
 
 import psutil
 
-from owtf.db.database import get_scoped_session
+from owtf.models.base.session import get_scoped_session
 from owtf.lib.exceptions import InvalidWorkerReference
 from owtf.lib.owtf_process import OWTFProcess
 from owtf.managers.error import add_error
@@ -32,7 +27,6 @@ from owtf.utils.error import abort_framework
 from owtf.utils.process import check_pid, _signal_process
 from owtf.utils.signals import workers_finish, owtf_start
 
-
 __all__ = ['worker_manager']
 
 # For psutil
@@ -40,6 +34,7 @@ TIMEOUT = 3
 
 
 class Worker(OWTFProcess):
+
     def initialize(self, **kwargs):
         super(Worker, self).__init__(**kwargs)
         self.output_q = None
@@ -83,6 +78,7 @@ class WorkerManager(object):
         # Complicated stuff to keep everything Pythonic and from blowing up
         def handle_signal(sender, **kwargs):
             self.on_start(sender, **kwargs)
+
         self.handle_signal = handle_signal
         owtf_start.connect(handle_signal)
         self.worklist = []  # List of unprocessed (plugin*target)
@@ -173,13 +169,13 @@ class WorkerManager(object):
                     self.workers[k]["busy"] = False  # Worker is IDLE
                     self.workers[k]["start_time"] = "NA"
                 else:
-                    logging.info("Worker with name %s and pid %s seems dead" % (self.workers[k]["worker"].name,
-                                                                                self.workers[k]["worker"].pid))
+                    logging.info("Worker with name %s and pid %s seems dead", self.workers[k]["worker"].name,
+                                 self.workers[k]["worker"].pid)
                     self.spawn_worker(index=k)
                 work_to_assign = self.get_task()
                 if work_to_assign:
-                    logging.info("Work assigned to %s with pid %d" % (self.workers[k]["worker"].name,
-                                                                      self.workers[k]["worker"].pid))
+                    logging.info("Work assigned to %s with pid %d", self.workers[k]["worker"].name,
+                                 self.workers[k]["worker"].pid)
                     trash_can = self.workers[k]["worker"].output_q.get()
                     # Assign work ,set target to used,and process to busy
                     self.workers[k]["worker"].input_q.put(work_to_assign)
@@ -260,7 +256,7 @@ class WorkerManager(object):
         """
 
         def on_terminate(proc):
-            logging.debug("Process {} terminated with exit code {}".format(proc, proc.returncode))
+            logging.debug("Process %d terminated with exit code %d", proc, proc.returncode)
 
         parent = psutil.Process(parent_pid)
         children = parent.children(recursive=True)
@@ -271,13 +267,13 @@ class WorkerManager(object):
         if not alive:
             # send SIGKILL
             for pid in alive:
-                logging.debug("Process {} survived SIGTERM; trying SIGKILL".format(pid))
+                logging.debug("Process %d survived SIGTERM; trying SIGKILL", pid)
                 pid.kill()
         gone, alive = psutil.wait_procs(alive, timeout=TIMEOUT, callback=on_terminate)
         if not alive:
             # give up
             for pid in alive:
-                logging.debug("Process {} survived SIGKILL; giving up".format(pid))
+                logging.debug("Process %d survived SIGKILL; giving up", pid)
 
     # NOTE: PSEUDO_INDEX = INDEX + 1
     # This is because the list index starts from 0 and in the UI, indices start from 1
@@ -297,7 +293,7 @@ class WorkerManager(object):
                 temp_dict["id"] = pseudo_index
                 return temp_dict
             except IndexError:
-                raise InvalidWorkerReference("No worker process with id: %s" % str(pseudo_index))
+                raise InvalidWorkerReference("No worker process with id: {}".format(str(pseudo_index)))
         else:
             worker_temp_list = []
             for i, obj in enumerate(self.workers):
@@ -333,7 +329,7 @@ class WorkerManager(object):
         try:
             return self.workers[pseudo_index - 1]
         except IndexError:
-            raise InvalidWorkerReference("No worker process with id: %s" % str(pseudo_index))
+            raise InvalidWorkerReference("No worker process with id: {}".format(str(pseudo_index)))
 
     def create_worker(self):
         """Create new worker
@@ -356,7 +352,7 @@ class WorkerManager(object):
             _signal_process(worker_dict["worker"].pid, signal.SIGINT)
             del self.workers[pseudo_index - 1]
         else:
-            raise InvalidWorkerReference("Worker with id %s is busy" % str(pseudo_index))
+            raise InvalidWorkerReference("Worker with id {} is busy".format(str(pseudo_index)))
 
     def pause_worker(self, pseudo_index):
         """Pause worker by sending SIGSTOP after verifying the process is running

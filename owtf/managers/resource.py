@@ -3,13 +3,12 @@ owtf.managers.resource
 ~~~~~~~~~~~~~~~~~~~~~~
 
 """
-
 import logging
 import os
 
-from owtf import get_scoped_session
-from owtf.db import models
+from owtf.models.base.session import get_scoped_session
 from owtf.managers.config import get_replacement_dict
+from owtf.models.resource import Resource
 from owtf.utils.file import FileOperations
 from owtf.utils.strings import multi_replace
 
@@ -22,10 +21,9 @@ def get_raw_resources(session, resource_type):
     :return: List of raw resources
     :rtype: `list`
     """
-    filter_query = session.query(models.Resource.resource_name, models.Resource.resource).filter_by(
-        resource_type=resource_type)
+    filter_query = session.query(Resource.resource_name, Resource.resource).filter_by(resource_type=resource_type)
     # Sorting is necessary for working of ExtractURLs, since it must run after main command, so order is imp
-    sort_query = filter_query.order_by(models.Resource.id)
+    sort_query = filter_query.order_by(Resource.id)
     raw_resources = sort_query.all()
     return raw_resources
 
@@ -70,8 +68,8 @@ def get_raw_resource_list(session, resource_list):
     :return: List of raw resources
     :rtype: `list`
     """
-    raw_resources = session.query(models.Resource.resource_name, models.Resource.resource).filter(
-        models.Resource.resource_type.in_(resource_list)).all()
+    raw_resources = session.query(Resource.resource_name, Resource.resource).filter(
+        Resource.resource_type.in_(resource_list)).all()
     return raw_resources
 
 
@@ -108,8 +106,8 @@ def get_resources_from_file(resource_file):
             type, name, resource = line.split('_____')
             resources.add((type, name, resource))
         except ValueError:
-            logging.info("ERROR: The delimiter is incorrect in this line at Resource File: %s" %
-                         str(line.split('_____')))
+            logging.info("ERROR: The delimiter is incorrect in this line at Resource File: %s", str(
+                line.split('_____')))
     return resources
 
 
@@ -131,7 +129,7 @@ def load_resources_from_file(session, default, fallback):
     resources = get_resources_from_file(file_path)
     # Delete all old resources which are not edited by user
     # because we may have updated the resource
-    session.query(models.Resource).filter_by(dirty=False).delete()
+    session.query(Resource).filter_by(dirty=False).delete()
     for type, name, resource in resources:
-        session.add(models.Resource(resource_type=type, resource_name=name, resource=resource))
+        session.add(Resource(resource_type=type, resource_name=name, resource=resource))
     session.commit()
